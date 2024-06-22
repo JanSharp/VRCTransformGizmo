@@ -1,4 +1,4 @@
-﻿using UdonSharp;
+using UdonSharp;
 using UnityEngine;
 using VRC.SDKBase;
 using VRC.Udon;
@@ -66,6 +66,7 @@ namespace JanSharp
         private VRCPlayerApi localPlayer;
 
         private TransformGizmoState state;
+        private VRCPlayerApi.TrackingData headTrackingData;
         private float gizmoScale;
         private Vector3 headToTargetDir;
         private Vector3 headDir;
@@ -95,17 +96,7 @@ namespace JanSharp
 
         private void Update()
         {
-            VRCPlayerApi.TrackingData head = localPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
-            gizmoScale = Vector3.Distance(tracked.position, head.position) / inverseScale;
-            gizmo.localScale = Vector3.one * gizmoScale;
-
-            headToTargetDir = (tracked.position - head.position).normalized;
-            if (headToTargetDir == Vector3.zero)
-                headToTargetDir = Vector3.forward;
-            headToTargetDir = Quaternion.Inverse(tracked.rotation) * headToTargetDir;
-
-            headDir = Quaternion.Inverse(tracked.rotation) * head.rotation * Vector3.forward;
-            headLocal = Quaternion.Inverse(tracked.rotation) * (head.position - tracked.position) / gizmoScale;
+            CalculateSharedVariables();
 
             for (int i = 0; i < 3; i++)
                 debugIntersects[i].gameObject.SetActive(false);
@@ -116,6 +107,7 @@ namespace JanSharp
                 UpdateCurrentState();
 
             // Prevent the gizmo highlights and such from jumping around due to using old position and rotation.
+            gizmo.localScale = Vector3.one * gizmoScale;
             gizmo.SetPositionAndRotation(tracked.position, tracked.rotation);
         }
 
@@ -275,13 +267,16 @@ namespace JanSharp
         {
             // TODO: snapping
             // TODO: highlight the 2 arrows that lay on the plane the object is moving on
-            // TODO: fix bobbing caused by the gizmo scale changing after the object got moved, which changes the intersection point and causes another move, rescale, intersection change, repeat
 
             if (!TryGetIntersection(highlightedAxis, out Vector3 intersection))
                 return;
 
             Vector3 movementToApply = tracked.rotation * ((intersection - planeOriginIntersection) * gizmoScale);
             tracked.position += movementToApply;
+
+            CalculateSharedVariables();
+            if (TryGetIntersection(highlightedAxis, out intersection))
+                planeOriginIntersection = intersection; // Prevent bobbing due to scale changes.
         }
 
         private void RotatingAxis()
@@ -416,6 +411,20 @@ namespace JanSharp
         #endregion
 
         #region Util/Other
+
+        private void CalculateSharedVariables()
+        {
+            headTrackingData = localPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
+            gizmoScale = Vector3.Distance(tracked.position, headTrackingData.position) / inverseScale;
+
+            headToTargetDir = (tracked.position - headTrackingData.position).normalized;
+            if (headToTargetDir == Vector3.zero)
+                headToTargetDir = Vector3.forward;
+            headToTargetDir = Quaternion.Inverse(tracked.rotation) * headToTargetDir;
+
+            headDir = Quaternion.Inverse(tracked.rotation) * headTrackingData.rotation * Vector3.forward;
+            headLocal = Quaternion.Inverse(tracked.rotation) * (headTrackingData.position - tracked.position) / gizmoScale;
+        }
 
         private void FacePlaneTowardsHead(int axisIndex)
         {
