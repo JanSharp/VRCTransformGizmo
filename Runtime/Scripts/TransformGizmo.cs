@@ -20,6 +20,16 @@ namespace JanSharp
     {
         public Transform tracked;
         public Transform gizmo;
+        public float inverseScale = 200f;
+        [Space]
+        #region MovingPlane Variables
+        public Transform[] planes;
+        public Transform highlightedPlane;
+        public Transform activePlane;
+        public float planeSize = 12f;
+        #endregion
+        [Space]
+        #region RotatingAxis Variables
         public Transform[] halfCircles;
         public GameObject[] otherHalfCircles;
         public Transform halfCircleHighlighted;
@@ -30,8 +40,8 @@ namespace JanSharp
         public Transform circleLineOne;
         public Transform circleLineTwo;
         public Material activeRotationIndicatorMat;
-        public float inverseScale = 200f;
         public float circleRadius = 44f;
+        #endregion
         [Space] // DEBUG
         public Transform[] debugIntersects;
         public Transform debugIndicatorOne;
@@ -56,9 +66,12 @@ namespace JanSharp
         private VRCPlayerApi localPlayer;
 
         private TransformGizmoState state;
+        private float gizmoScale;
         private Vector3 headToTargetDir;
         private Vector3 headDir;
         private Vector3 headLocal;
+
+        private Vector3 planeOriginIntersection;
 
         private TransformGizmoState highlightedState;
         private float highlightedProximity;
@@ -77,14 +90,14 @@ namespace JanSharp
         private void Start()
         {
             localPlayer = Networking.LocalPlayer;
-            EnterWaitingState();
+            EnterState(TransformGizmoState.Waiting);
         }
 
         private void Update()
         {
             VRCPlayerApi.TrackingData head = localPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
-            float scale = Vector3.Distance(tracked.position, head.position) / inverseScale;
-            gizmo.localScale = Vector3.one * scale;
+            gizmoScale = Vector3.Distance(tracked.position, head.position) / inverseScale;
+            gizmo.localScale = Vector3.one * gizmoScale;
 
             headToTargetDir = (tracked.position - head.position).normalized;
             if (headToTargetDir == Vector3.zero)
@@ -92,14 +105,15 @@ namespace JanSharp
             headToTargetDir = Quaternion.Inverse(tracked.rotation) * headToTargetDir;
 
             headDir = Quaternion.Inverse(tracked.rotation) * head.rotation * Vector3.forward;
-            headLocal = Quaternion.Inverse(tracked.rotation) * (head.position - tracked.position) / scale;
+            headLocal = Quaternion.Inverse(tracked.rotation) * (head.position - tracked.position) / gizmoScale;
 
             for (int i = 0; i < 3; i++)
                 debugIntersects[i].gameObject.SetActive(false);
 
             if (state != TransformGizmoState.Waiting && Input.GetMouseButtonUp(0))
-                EnterWaitingState();
-            UpdateCurrentState();
+                EnterState(TransformGizmoState.Waiting); // Also calls UpdateCurrentState().
+            else
+                UpdateCurrentState();
 
             // Prevent the gizmo highlights and such from jumping around due to using old position and rotation.
             gizmo.SetPositionAndRotation(tracked.position, tracked.rotation);
@@ -111,6 +125,7 @@ namespace JanSharp
 
         private void EnterState(TransformGizmoState newState)
         {
+            DisableEverything();
             switch (newState)
             {
                 case TransformGizmoState.Waiting:
@@ -132,16 +147,18 @@ namespace JanSharp
                     EnterScalingWholeState();
                     break;
             }
+            state = newState;
             UpdateCurrentState();
         }
 
-        private void EnterWaitingState()
+        private void DisableEverything()
         {
-            state = TransformGizmoState.Waiting;
             for (int i = 0; i < 3; i++)
             {
-                halfCircles[i].gameObject.SetActive(true);
+                planes[i].gameObject.SetActive(false);
+                halfCircles[i].gameObject.SetActive(false);
             }
+            activePlane.gameObject.SetActive(false);
             activeCircle.gameObject.SetActive(false);
             activeSnapCircle.gameObject.SetActive(false);
             activeRotationIndicator.gameObject.SetActive(false);
@@ -149,23 +166,35 @@ namespace JanSharp
             circleLineTwo.gameObject.SetActive(false);
         }
 
+        private void EnterWaitingState()
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                planes[i].gameObject.SetActive(true);
+                halfCircles[i].gameObject.SetActive(true);
+            }
+        }
+
         private void EnterMovingAxisState()
         {
-            state = TransformGizmoState.MovingAxis;
+
         }
 
         private void EnterMovingPlaneState()
         {
-            state = TransformGizmoState.MovingPlane;
+            for (int i = 0; i < 3; i++)
+                planes[i].gameObject.SetActive(i != highlightedAxis);
+            activePlane.localPosition = planes[highlightedAxis].localPosition;
+            activePlane.localRotation = planes[highlightedAxis].localRotation;
+            activePlane.gameObject.SetActive(true);
         }
 
         private void EnterRotatingAxisState()
         {
-            state = TransformGizmoState.RotatingAxis;
             for (int i = 0; i < 3; i++)
                 halfCircles[i].gameObject.SetActive(i != highlightedAxis);
-            activeCircle.gameObject.SetActive(true);
             activeCircle.localRotation = GetOriginRotation();
+            activeCircle.gameObject.SetActive(true);
             activeRotationIndicator.gameObject.SetActive(true);
             circleLineOne.gameObject.SetActive(true);
             circleLineTwo.gameObject.SetActive(true);
@@ -173,12 +202,12 @@ namespace JanSharp
 
         private void EnterScalingAxisState()
         {
-            state = TransformGizmoState.ScalingAxis;
+
         }
 
         private void EnterScalingWholeState()
         {
-            state = TransformGizmoState.ScalingWhole;
+
         }
 
         #endregion
@@ -213,7 +242,10 @@ namespace JanSharp
         private void Waiting()
         {
             for (int i = 0; i < 3; i++)
-                FaceCircleTowardsHead(i, halfCircles);
+            {
+                FacePlaneTowardsHead(i);
+                FaceCircleTowardsHead(i);
+            }
 
             highlightedState = TransformGizmoState.Waiting;
             highlightedProximity = 1f;
@@ -241,7 +273,15 @@ namespace JanSharp
 
         private void MovingPlane()
         {
+            // TODO: snapping
+            // TODO: highlight the 2 arrows that lay on the plane the object is moving on
+            // TODO: fix bobbing caused by the gizmo scale changing after the object got moved, which changes the intersection point and causes another move, rescale, intersection change, repeat
 
+            if (!TryGetIntersection(highlightedAxis, out Vector3 intersection))
+                return;
+
+            Vector3 movementToApply = tracked.rotation * ((intersection - planeOriginIntersection) * gizmoScale);
+            tracked.position += movementToApply;
         }
 
         private void RotatingAxis()
@@ -253,7 +293,7 @@ namespace JanSharp
             {
                 for (int i = 0; i < 3; i++)
                     if (i != highlightedAxis)
-                        FaceCircleTowardsHead(i, halfCircles);
+                        FaceCircleTowardsHead(i);
                 if (snapping)
                     UpdateSnappingCircleHighlight();
                 return;
@@ -287,7 +327,7 @@ namespace JanSharp
             // TODO: recalculate stuff since the tracked rotation changed and the gizmo has also been rotated.
             for (int i = 0; i < 3; i++)
                 if (i != highlightedAxis)
-                    FaceCircleTowardsHead(i, halfCircles);
+                    FaceCircleTowardsHead(i);
             if (snapping)
                 UpdateSnappingCircleHighlight();
         }
@@ -310,9 +350,11 @@ namespace JanSharp
         {
             for (int i = 0; i < 3; i++)
             {
+                planes[i].gameObject.SetActive(true);
                 halfCircles[i].gameObject.SetActive(true);
                 halfCircleHighlighted.gameObject.SetActive(false);
             }
+            highlightedPlane.gameObject.SetActive(false);
         }
 
         private void UpdateCurrentHighlight()
@@ -346,14 +388,17 @@ namespace JanSharp
 
         private void UpdateMovingPlaneHighlight()
         {
-
+            planes[highlightedAxis].gameObject.SetActive(false);
+            highlightedPlane.localPosition = planes[highlightedAxis].localPosition;
+            highlightedPlane.localRotation = planes[highlightedAxis].localRotation;
+            highlightedPlane.gameObject.SetActive(true);
         }
 
         private void UpdateRotatingAxisHighlight()
         {
             halfCircles[highlightedAxis].gameObject.SetActive(false);
-            halfCircleHighlighted.gameObject.SetActive(true);
             halfCircleHighlighted.localRotation = halfCircles[highlightedAxis].localRotation;
+            halfCircleHighlighted.gameObject.SetActive(true);
             otherHalfCircleHighlighted.gameObject.SetActive(showFullCircle[highlightedAxis]);
         }
 
@@ -372,6 +417,16 @@ namespace JanSharp
 
         #region Util/Other
 
+        private void FacePlaneTowardsHead(int axisIndex)
+        {
+            Vector3 localPos = new Vector3(
+                headLocal.x < 0f ? -planeSize / 2f : planeSize / 2f,
+                headLocal.y < 0f ? -planeSize / 2f : planeSize / 2f,
+                headLocal.z < 0f ? -planeSize / 2f : planeSize / 2f);
+            localPos[axisIndex] = 0f;
+            planes[axisIndex].localPosition = localPos;
+        }
+
         private Quaternion GetOriginRotation()
         {
             return Quaternion.LookRotation(localRotationDirection, axisDirs[highlightedAxis])
@@ -383,7 +438,7 @@ namespace JanSharp
             activeSnapCircle.localRotation = GetOriginRotation();
         }
 
-        private void FaceCircleTowardsHead(int axisIndex, Transform[] relevantCircles)
+        private void FaceCircleTowardsHead(int axisIndex)
         {
             // TODO: maybe if the angle is too shallow, hide it entirely.
 
@@ -443,17 +498,38 @@ namespace JanSharp
             float proximityMultiplier = GetProximityMultiplier(axisIndex);
             float depthProximity = (intersection - headLocal).magnitude / 10_000f;
 
-            float proximity = depthProximity + Mathf.Abs(intersection.magnitude - circleRadius) * proximityMultiplier;
-            if (proximity < highlightedProximity && (showFullCircle[axisIndex] || IsNearHalfCircle(axisIndex, intersection)))
-            {
-                highlightedState = TransformGizmoState.RotatingAxis;
-                highlightedProximity = proximity;
-                highlightedAxis = axisIndex;
-
-                prevRotation = tracked.rotation;
-                localRotationDirection = tangentRotations[axisIndex] * intersection.normalized;
-                prevOffset = Quaternion.identity;
+            { // RotatingAxis
+                float proximity = depthProximity + Mathf.Abs(intersection.magnitude - circleRadius) * proximityMultiplier;
+                if (proximity < highlightedProximity && (showFullCircle[axisIndex] || IsNearHalfCircle(axisIndex, intersection)))
+                    SetHighlightedStateToRotatingAxis(proximity, axisIndex, intersection);
             }
+
+            { // MovingPlane
+                Vector3 shifted = intersection - planes[axisIndex].localPosition;
+                float maxDistance = Mathf.Max(Mathf.Abs(shifted.x), Mathf.Abs(shifted.y), Mathf.Abs(shifted.z));
+                if (depthProximity < highlightedProximity && maxDistance <= planeSize / 2f)
+                    SetHighlightedStateToMovingPlane(depthProximity, axisIndex, intersection);
+            }
+        }
+
+        private void SetHighlightedStateToMovingPlane(float proximity, int axisIndex, Vector3 intersection)
+        {
+            highlightedState = TransformGizmoState.MovingPlane;
+            highlightedProximity = proximity;
+            highlightedAxis = axisIndex;
+
+            planeOriginIntersection = intersection;
+        }
+
+        private void SetHighlightedStateToRotatingAxis(float proximity, int axisIndex, Vector3 intersection)
+        {
+            highlightedState = TransformGizmoState.RotatingAxis;
+            highlightedProximity = proximity;
+            highlightedAxis = axisIndex;
+
+            prevRotation = tracked.rotation;
+            localRotationDirection = tangentRotations[axisIndex] * intersection.normalized;
+            prevOffset = Quaternion.identity;
         }
 
         #endregion

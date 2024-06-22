@@ -30,6 +30,7 @@
             {
                 float4 vertex : POSITION;
                 float3 normal : NORMAL;
+                float3 uv : TEXCOORD0;
             };
 
             struct Interpolator
@@ -37,6 +38,7 @@
                 float4 vertex : SV_POSITION; // clip space
                 float3 normal : TEXCOORD0;
                 float3 viewDir : TEXCOORD1;
+                float3 uv : TEXCOORD2;
             };
 
             Interpolator vert (MeshData v)
@@ -45,6 +47,7 @@
                 o.vertex = UnityObjectToClipPos(v.vertex);
                 o.normal = UnityObjectToWorldNormal(v.normal);
                 o.viewDir = _WorldSpaceCameraPos - mul(unity_ObjectToWorld, v.vertex);
+                o.uv = v.uv;
                 return o;
             }
 
@@ -52,7 +55,10 @@
             {
                 // float3 forward = -mul((float3x3)unity_CameraToWorld, float3(0,0,1));
                 float3 forward = normalize(i.viewDir);
-                return float4(saturate(dot(i.normal, forward).xxx), 1) * _Color;
+                float4 color = float4(saturate(dot(i.normal, forward).xxx), 1) * _Color;
+                if (i.uv.x < 0.05 || i.uv.x > 0.95 || i.uv.y < 0.05 || i.uv.y > 0.95)
+                    color.a = 1;
+                return color;
             }
             ENDCG
         }
