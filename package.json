@@ -1,0 +1,22 @@
+{
+  "name": "com.jansharp.transform-gizmo",
+  "version": "0.1.0",
+  "description": "A Transform Gizmo for other systems to let users move, rotate and scale objects at runtime.",
+  "displayName": "Transform Gizmo",
+  "unity": "2019.4",
+  "author": {
+    "name": "JanSharp",
+    "email": "steinmeister36@gmail.com",
+    "url": "https://jansharp.github.io"
+  },
+  "dependencies": {
+    "com.unity.textmeshpro": "2.1.6"
+  },
+  "license": "MIT",
+  "vpmDependencies": {
+    "com.vrchat.worlds": "^3.4.x",
+    "com.jansharp.common": ">=0.1.0"
+  },
+  "url": "https://github.com/JanSharp/VRCTransformGizmo/releases/download/v0.1.0/com.jansharp.transform-gizmo.zip",
+  "changelogUrl": "https://github.com/JanSharp/VRCTransformGizmo/blob/v0.1.0/CHANGELOG.md"
+}

@@ -1,0 +1,461 @@
+﻿using UdonSharp;
+using UnityEngine;
+using VRC.SDKBase;
+using VRC.Udon;
+
+namespace JanSharp
+{
+    public enum TransformGizmoState
+    {
+        Waiting,
+        MovingAxis,
+        MovingPlane,
+        RotatingAxis,
+        ScalingAxis,
+        ScalingWhole,
+    }
+
+    [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
+    public class TransformGizmo : UdonSharpBehaviour
+    {
+        public Transform tracked;
+        public Transform gizmo;
+        public Transform[] halfCircles;
+        public GameObject[] otherHalfCircles;
+        public Transform halfCircleHighlighted;
+        public GameObject otherHalfCircleHighlighted;
+        public Transform activeCircle;
+        public Transform activeSnapCircle;
+        public Transform activeRotationIndicator;
+        public Transform circleLineOne;
+        public Transform circleLineTwo;
+        public Material activeRotationIndicatorMat;
+        public float inverseScale = 200f;
+        public float circleRadius = 44f;
+        [Space] // DEBUG
+        public Transform[] debugIntersects;
+        public Transform debugIndicatorOne;
+        public Transform debugIndicatorTwo;
+
+        private const float MaxAllowedProximity = 5f;
+
+        private Quaternion[] tangentRotations = new Quaternion[]
+        {
+            Quaternion.Euler(90f, 0f, 0f),
+            Quaternion.Euler(0f, 90f, 0f),
+            Quaternion.Euler(0f, 0f, 90f),
+        };
+
+        private Vector3[] axisDirs = new Vector3[]
+        {
+            Vector3.right,
+            Vector3.up,
+            Vector3.forward,
+        };
+
+        private VRCPlayerApi localPlayer;
+
+        private TransformGizmoState state;
+        private Vector3 headToTargetDir;
+        private Vector3 headDir;
+        private Vector3 headLocal;
+
+        private TransformGizmoState highlightedState;
+        private float highlightedProximity;
+        private int highlightedAxis;
+
+        // Waiting.
+        private bool[] showFullCircle = new bool[3];
+
+        // Rotating Axis.
+        private Quaternion prevRotation;
+        private Vector3 localRotationDirection;
+        private Quaternion prevOffset;
+
+        #region Unity Events
+
+        private void Start()
+        {
+            localPlayer = Networking.LocalPlayer;
+            EnterWaitingState();
+        }
+
+        private void Update()
+        {
+            VRCPlayerApi.TrackingData head = localPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
+            float scale = Vector3.Distance(tracked.position, head.position) / inverseScale;
+            gizmo.localScale = Vector3.one * scale;
+
+            headToTargetDir = (tracked.position - head.position).normalized;
+            if (headToTargetDir == Vector3.zero)
+                headToTargetDir = Vector3.forward;
+            headToTargetDir = Quaternion.Inverse(tracked.rotation) * headToTargetDir;
+
+            headDir = Quaternion.Inverse(tracked.rotation) * head.rotation * Vector3.forward;
+            headLocal = Quaternion.Inverse(tracked.rotation) * (head.position - tracked.position) / scale;
+
+            for (int i = 0; i < 3; i++)
+                debugIntersects[i].gameObject.SetActive(false);
+
+            if (state != TransformGizmoState.Waiting && Input.GetMouseButtonUp(0))
+                EnterWaitingState();
+            UpdateCurrentState();
+
+            // Prevent the gizmo highlights and such from jumping around due to using old position and rotation.
+            gizmo.SetPositionAndRotation(tracked.position, tracked.rotation);
+        }
+
+        #endregion
+
+        #region State Entering
+
+        private void EnterState(TransformGizmoState newState)
+        {
+            switch (newState)
+            {
+                case TransformGizmoState.Waiting:
+                    EnterWaitingState();
+                    break;
+                case TransformGizmoState.MovingAxis:
+                    EnterMovingAxisState();
+                    break;
+                case TransformGizmoState.MovingPlane:
+                    EnterMovingPlaneState();
+                    break;
+                case TransformGizmoState.RotatingAxis:
+                    EnterRotatingAxisState();
+                    break;
+                case TransformGizmoState.ScalingAxis:
+                    EnterScalingAxisState();
+                    break;
+                case TransformGizmoState.ScalingWhole:
+                    EnterScalingWholeState();
+                    break;
+            }
+            UpdateCurrentState();
+        }
+
+        private void EnterWaitingState()
+        {
+            state = TransformGizmoState.Waiting;
+            for (int i = 0; i < 3; i++)
+            {
+                halfCircles[i].gameObject.SetActive(true);
+            }
+            activeCircle.gameObject.SetActive(false);
+            activeSnapCircle.gameObject.SetActive(false);
+            activeRotationIndicator.gameObject.SetActive(false);
+            circleLineOne.gameObject.SetActive(false);
+            circleLineTwo.gameObject.SetActive(false);
+        }
+
+        private void EnterMovingAxisState()
+        {
+            state = TransformGizmoState.MovingAxis;
+        }
+
+        private void EnterMovingPlaneState()
+        {
+            state = TransformGizmoState.MovingPlane;
+        }
+
+        private void EnterRotatingAxisState()
+        {
+            state = TransformGizmoState.RotatingAxis;
+            for (int i = 0; i < 3; i++)
+                halfCircles[i].gameObject.SetActive(i != highlightedAxis);
+            activeCircle.gameObject.SetActive(true);
+            activeCircle.localRotation = GetOriginRotation();
+            activeRotationIndicator.gameObject.SetActive(true);
+            circleLineOne.gameObject.SetActive(true);
+            circleLineTwo.gameObject.SetActive(true);
+        }
+
+        private void EnterScalingAxisState()
+        {
+            state = TransformGizmoState.ScalingAxis;
+        }
+
+        private void EnterScalingWholeState()
+        {
+            state = TransformGizmoState.ScalingWhole;
+        }
+
+        #endregion
+
+        #region State Update
+
+        private void UpdateCurrentState()
+        {
+            switch (state)
+            {
+                case TransformGizmoState.Waiting:
+                    Waiting();
+                    break;
+                case TransformGizmoState.MovingAxis:
+                    MovingAxis();
+                    break;
+                case TransformGizmoState.MovingPlane:
+                    MovingPlane();
+                    break;
+                case TransformGizmoState.RotatingAxis:
+                    RotatingAxis();
+                    break;
+                case TransformGizmoState.ScalingAxis:
+                    ScalingAxis();
+                    break;
+                case TransformGizmoState.ScalingWhole:
+                    ScalingWhole();
+                    break;
+            }
+        }
+
+        private void Waiting()
+        {
+            for (int i = 0; i < 3; i++)
+                FaceCircleTowardsHead(i, halfCircles);
+
+            highlightedState = TransformGizmoState.Waiting;
+            highlightedProximity = 1f;
+            for (int i = 0; i < 3; i++)
+                CheckProximity(i);
+
+            DisableAllHighlights();
+
+            if (highlightedState == TransformGizmoState.Waiting)
+                return;
+
+            if (Input.GetMouseButtonDown(0))
+            {
+                EnterState(highlightedState);
+                return;
+            }
+
+            UpdateCurrentHighlight();
+        }
+
+        private void MovingAxis()
+        {
+
+        }
+
+        private void MovingPlane()
+        {
+
+        }
+
+        private void RotatingAxis()
+        {
+            bool snapping = Input.GetKey(KeyCode.LeftControl);
+            activeSnapCircle.gameObject.SetActive(snapping);
+
+            if (!TryGetIntersection(highlightedAxis, out Vector3 intersection))
+            {
+                for (int i = 0; i < 3; i++)
+                    if (i != highlightedAxis)
+                        FaceCircleTowardsHead(i, halfCircles);
+                if (snapping)
+                    UpdateSnappingCircleHighlight();
+                return;
+            }
+
+            debugIndicatorOne.localPosition = localRotationDirection * 20f;
+            debugIndicatorTwo.localPosition = Vector3.Project(intersection, localRotationDirection);
+
+            Vector3 projected = Vector3.Project(intersection, localRotationDirection);
+            float totalMovement = projected.magnitude / (circleRadius * Mathf.PI * 2f) * 360f;
+            if (snapping)
+                totalMovement = Mathf.Round(totalMovement / 15f) * 15f;
+            totalMovement *= (Vector3.Dot(projected, localRotationDirection) < 0f ? -1f : 1f);
+
+            Vector3 euler = Vector3.zero;
+            euler[highlightedAxis] = totalMovement;
+            Quaternion offset = Quaternion.Euler(euler);
+            Quaternion rotationToApply = Quaternion.Inverse(prevOffset) * offset;
+
+            prevOffset = offset;
+            prevRotation *= rotationToApply;
+            localRotationDirection = Quaternion.Inverse(rotationToApply) * localRotationDirection;
+
+            tracked.rotation = prevRotation;
+            Quaternion originRotation = GetOriginRotation();
+            activeRotationIndicator.localRotation = originRotation;
+            circleLineOne.localRotation = originRotation;
+            circleLineTwo.localRotation = originRotation * Quaternion.Euler(0f, totalMovement, 0f);
+            activeRotationIndicatorMat.SetFloat("_Angle", totalMovement);
+
+            // TODO: recalculate stuff since the tracked rotation changed and the gizmo has also been rotated.
+            for (int i = 0; i < 3; i++)
+                if (i != highlightedAxis)
+                    FaceCircleTowardsHead(i, halfCircles);
+            if (snapping)
+                UpdateSnappingCircleHighlight();
+        }
+
+        private void ScalingAxis()
+        {
+
+        }
+
+        private void ScalingWhole()
+        {
+
+        }
+
+        #endregion
+
+        #region Highlights
+
+        private void DisableAllHighlights()
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                halfCircles[i].gameObject.SetActive(true);
+                halfCircleHighlighted.gameObject.SetActive(false);
+            }
+        }
+
+        private void UpdateCurrentHighlight()
+        {
+            switch (highlightedState)
+            {
+                case TransformGizmoState.Waiting:
+                    return;
+                case TransformGizmoState.MovingAxis:
+                    UpdateMovingAxisHighlight();
+                    break;
+                case TransformGizmoState.MovingPlane:
+                    UpdateMovingPlaneHighlight();
+                    break;
+                case TransformGizmoState.RotatingAxis:
+                    UpdateRotatingAxisHighlight();
+                    break;
+                case TransformGizmoState.ScalingAxis:
+                    UpdateScalingAxisHighlight();
+                    break;
+                case TransformGizmoState.ScalingWhole:
+                    UpdateScalingWholeHighlight();
+                    break;
+            }
+        }
+
+        private void UpdateMovingAxisHighlight()
+        {
+
+        }
+
+        private void UpdateMovingPlaneHighlight()
+        {
+
+        }
+
+        private void UpdateRotatingAxisHighlight()
+        {
+            halfCircles[highlightedAxis].gameObject.SetActive(false);
+            halfCircleHighlighted.gameObject.SetActive(true);
+            halfCircleHighlighted.localRotation = halfCircles[highlightedAxis].localRotation;
+            otherHalfCircleHighlighted.gameObject.SetActive(showFullCircle[highlightedAxis]);
+        }
+
+        private void UpdateScalingAxisHighlight()
+        {
+
+        }
+
+        private void UpdateScalingWholeHighlight()
+        {
+
+        }
+
+
+        #endregion
+
+        #region Util/Other
+
+        private Quaternion GetOriginRotation()
+        {
+            return Quaternion.LookRotation(localRotationDirection, axisDirs[highlightedAxis])
+                * Quaternion.Euler(0f, -90f, 0f);
+        }
+
+        private void UpdateSnappingCircleHighlight()
+        {
+            activeSnapCircle.localRotation = GetOriginRotation();
+        }
+
+        private void FaceCircleTowardsHead(int axisIndex, Transform[] relevantCircles)
+        {
+            // TODO: maybe if the angle is too shallow, hide it entirely.
+
+            Vector3 axis = axisDirs[axisIndex];
+
+            halfCircles[axisIndex].localRotation = Quaternion.LookRotation(
+                Vector3.ProjectOnPlane(headToTargetDir, axis).normalized, axis);
+
+            bool isSteep = Mathf.Abs(Vector3.Dot(headToTargetDir, axis)) > 0.9625f;
+            showFullCircle[axisIndex] = isSteep;
+            otherHalfCircles[axisIndex].gameObject.SetActive(isSteep);
+        }
+
+        private bool IsLookingTowardsPlane(int axisIndex)
+        {
+            Vector3 headToPlaneDir = new Vector3();
+            // Inverted since headLocal is effectively from plane to head.
+            headToPlaneDir[axisIndex] = -headLocal[axisIndex];
+            return Vector3.Dot(headToPlaneDir, headDir) > 0f;
+        }
+
+        private bool TryGetIntersection(int axisIndex, out Vector3 intersection)
+        {
+            if (!IsLookingTowardsPlane(axisIndex))
+            {
+                intersection = new Vector3();
+                return false;
+            }
+            intersection = GetIntersection(axisIndex);
+            return true;
+        }
+
+        private Vector3 GetIntersection(int axisIndex)
+        {
+            Vector3 intersection = headLocal + (headDir * -(headLocal[axisIndex] / headDir[axisIndex]));
+            intersection[axisIndex] = 0f;
+            debugIntersects[axisIndex].gameObject.SetActive(true);
+            debugIntersects[axisIndex].localPosition = intersection;
+            return intersection;
+        }
+
+        private bool IsNearHalfCircle(int axisIndex, Vector3 intersection)
+        {
+            return Vector3.Dot(intersection, headToTargetDir) <= 0f;
+        }
+
+        private float GetProximityMultiplier(int axisIndex)
+        {
+            return 1f / ((headDir / headDir[axisIndex]).magnitude * MaxAllowedProximity);
+        }
+
+        private void CheckProximity(int axisIndex)
+        {
+            if (!TryGetIntersection(axisIndex, out Vector3 intersection))
+                return;
+
+            float proximityMultiplier = GetProximityMultiplier(axisIndex);
+            float depthProximity = (intersection - headLocal).magnitude / 10_000f;
+
+            float proximity = depthProximity + Mathf.Abs(intersection.magnitude - circleRadius) * proximityMultiplier;
+            if (proximity < highlightedProximity && (showFullCircle[axisIndex] || IsNearHalfCircle(axisIndex, intersection)))
+            {
+                highlightedState = TransformGizmoState.RotatingAxis;
+                highlightedProximity = proximity;
+                highlightedAxis = axisIndex;
+
+                prevRotation = tracked.rotation;
+                localRotationDirection = tangentRotations[axisIndex] * intersection.normalized;
+                prevOffset = Quaternion.identity;
+            }
+        }
+
+        #endregion
+    }
+}
