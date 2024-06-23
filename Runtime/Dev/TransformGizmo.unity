@@ -28222,8 +28222,7 @@ MonoBehaviour:
   activeRotationIndicator: {fileID: 815760566}
   circleLineOne: {fileID: 1878616597}
   circleLineTwo: {fileID: 1498088358}
-  activeRotationIndicatorMat: {fileID: 2100000, guid: 23e65f4686bcef6bab39d9029fe88dbe,
-    type: 2}
+  activeRotationIndicatorRenderer: {fileID: 1020066299}
   circleRadius: 44
   debugIntersects:
   - {fileID: 1244205606}

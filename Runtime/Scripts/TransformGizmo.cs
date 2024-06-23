@@ -39,7 +39,8 @@ namespace JanSharp
         [SerializeField] private Transform activeRotationIndicator;
         [SerializeField] private Transform circleLineOne;
         [SerializeField] private Transform circleLineTwo;
-        [SerializeField] private Material activeRotationIndicatorMat;
+        [SerializeField] private MeshRenderer activeRotationIndicatorRenderer;
+        private Material activeRotationIndicatorMat; // Set in Start.
         [SerializeField] private float circleRadius = 44f;
         #endregion
         [Space] // DEBUG
@@ -94,6 +95,7 @@ namespace JanSharp
         private void Start()
         {
             localPlayer = Networking.LocalPlayer;
+            activeRotationIndicatorMat = activeRotationIndicatorRenderer.material;
             EnterState(TransformGizmoState.Waiting);
         }
 
