@@ -22,6 +22,13 @@ namespace JanSharp
         [SerializeField] private Transform gizmo;
         [SerializeField] private float inverseScale = 200f;
         [Space]
+        #region MovingAxis Variables
+        [SerializeField] private Transform[] arrows;
+        [SerializeField] private Transform[] highlightedArrows;
+        [SerializeField] private Transform[] activeArrows;
+        [SerializeField] private float arrowLength = 12f;
+        #endregion
+        [Space]
         #region MovingPlane Variables
         [SerializeField] private Transform[] planes;
         [SerializeField] private Transform highlightedPlane;
@@ -152,6 +159,8 @@ namespace JanSharp
         {
             for (int i = 0; i < 3; i++)
             {
+                arrows[i].gameObject.SetActive(false);
+                activeArrows[i].gameObject.SetActive(false);
                 planes[i].gameObject.SetActive(false);
                 halfCircles[i].gameObject.SetActive(false);
             }
@@ -167,6 +176,7 @@ namespace JanSharp
         {
             for (int i = 0; i < 3; i++)
             {
+                arrows[i].gameObject.SetActive(true);
                 planes[i].gameObject.SetActive(true);
                 halfCircles[i].gameObject.SetActive(true);
             }
@@ -180,7 +190,11 @@ namespace JanSharp
         private void EnterMovingPlaneState()
         {
             for (int i = 0; i < 3; i++)
+            {
                 planes[i].gameObject.SetActive(i != highlightedAxis);
+                activeArrows[i].gameObject.SetActive(i != highlightedAxis);
+            }
+            arrows[highlightedAxis].gameObject.SetActive(true);
             activePlane.localPosition = planes[highlightedAxis].localPosition;
             activePlane.localRotation = planes[highlightedAxis].localRotation;
             activePlane.gameObject.SetActive(true);
@@ -270,8 +284,6 @@ namespace JanSharp
 
         private void MovingPlane()
         {
-            // TODO: highlight the 2 arrows that lay on the plane the object is moving on
-
             if (!TryGetIntersection(highlightedAxis, out Vector3 intersection))
                 return;
 
