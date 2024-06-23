@@ -96,9 +96,7 @@ namespace JanSharp
         private Vector3 headDir;
         private Vector3 headLocal;
 
-        private float axisOriginIntersection;
-        private Vector3 axisStartPosition;
-        private float axisTotalMovement;
+        private Vector3 freeformReferencePlane;
 
         private Vector3 planeOriginIntersection;
         private Vector3 planeStartPosition;
@@ -313,13 +311,9 @@ namespace JanSharp
 
         private void MovingAxis()
         {
-            if (!TryGetIntersection((highlightedAxis + 1) % 3, out Vector3 intersectionOne))
+            if (!TryGetIntersectionOnPlane(freeformReferencePlane, out Vector3 intersection))
                 return;
-            if (!TryGetIntersection((highlightedAxis + 2) % 3, out Vector3 intersectionTwo))
-                return;
-            Vector3 projected = new Vector3();
-            projected[highlightedAxis] = (intersectionOne[highlightedAxis] + intersectionTwo[highlightedAxis]) / 2f;
-            Moving(projected);
+            Moving(Vector3.Project(intersection, axisDirs[highlightedAxis]));
         }
 
         private void MovingPlane()
@@ -551,7 +545,7 @@ namespace JanSharp
             otherHalfCircles[axisIndex].gameObject.SetActive(isSteep);
         }
 
-        private bool IsLookingTowardsPlane(int axisIndex)
+        private bool IsLookingTowardsAxisPlane(int axisIndex)
         {
             Vector3 headToPlaneDir = new Vector3();
             // Inverted since headLocal is effectively from plane to head.
@@ -561,7 +555,7 @@ namespace JanSharp
 
         private bool TryGetIntersection(int axisIndex, out Vector3 intersection)
         {
-            if (!IsLookingTowardsPlane(axisIndex))
+            if (!IsLookingTowardsAxisPlane(axisIndex))
             {
                 intersection = new Vector3();
                 return false;
@@ -577,6 +571,23 @@ namespace JanSharp
             debugIntersects[axisIndex].gameObject.SetActive(true);
             debugIntersects[axisIndex].localPosition = intersection;
             return intersection;
+        }
+
+        private bool TryGetIntersectionOnPlane(Vector3 planeNormal, out Vector3 intersection)
+        {
+            if (Vector3.Dot(headDir, Vector3.Project(headLocal, planeNormal)) >= 0f)
+            {
+                intersection = new Vector3();
+                return false;
+            }
+            intersection = GetIntersectionOnPlane(planeNormal);
+            return Vector3.Distance(intersection, headLocal) * gizmoScale <= maxIntersectionDistance;
+        }
+
+        private Vector3 GetIntersectionOnPlane(Vector3 planeNormal)
+        {
+            float distanceFromHeadToPlane = Vector3.Distance(Vector3.ProjectOnPlane(headLocal, planeNormal), headLocal);
+            return headLocal + (headDir * Mathf.Abs(distanceFromHeadToPlane / Vector3.Dot(headDir, planeNormal)));
         }
 
         private bool IsNearHalfCircle(int axisIndex, Vector3 intersection)
@@ -631,7 +642,7 @@ namespace JanSharp
                     semiProjected[i] = Mathf.Max(0f, semiProjected[i] - arrowLength) / proximityMultiplier;
                     float proximity = depthProximity + semiProjected.magnitude * proximityMultiplier;
                     if (proximity < highlightedProximity)
-                        SetHighlightedStateToMovingAxis(depthProximity, i, intersection);
+                        TrySetHighlightedStateToMovingAxis(depthProximity, i, intersection);
                 }
 
                 { // ScalingAxis
@@ -645,15 +656,18 @@ namespace JanSharp
             }
         }
 
-        private void SetHighlightedStateToMovingAxis(float proximity, int axisIndex, Vector3 intersection)
+        private void TrySetHighlightedStateToMovingAxis(float proximity, int axisIndex, Vector3 intersection)
         {
+            Vector3 plane = (headDir - Vector3.Project(headDir, axisDirs[axisIndex])).normalized;
+            if (plane == Vector3.zero)
+                return;
+
             highlightedState = TransformGizmoState.MovingAxis;
             highlightedProximity = proximity;
             highlightedAxis = axisIndex;
 
-            Vector3 projected = new Vector3();
-            projected[axisIndex] = intersection[axisIndex];
-            planeOriginIntersection = projected;
+            freeformReferencePlane = plane;
+            planeOriginIntersection = Vector3.Project(GetIntersectionOnPlane(freeformReferencePlane), axisDirs[axisIndex]);
             planeStartPosition = tracked.localPosition;
             planeTotalMovement = new Vector3();
             originGizmoScale = gizmoScale;
