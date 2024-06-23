@@ -18,34 +18,34 @@ namespace JanSharp
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
     public class TransformGizmo : UdonSharpBehaviour
     {
-        public Transform tracked;
-        public Transform gizmo;
-        public float inverseScale = 200f;
+        [SerializeField] private Transform tracked;
+        [SerializeField] private Transform gizmo;
+        [SerializeField] private float inverseScale = 200f;
         [Space]
         #region MovingPlane Variables
-        public Transform[] planes;
-        public Transform highlightedPlane;
-        public Transform activePlane;
-        public float planeSize = 12f;
+        [SerializeField] private Transform[] planes;
+        [SerializeField] private Transform highlightedPlane;
+        [SerializeField] private Transform activePlane;
+        [SerializeField] private float planeSize = 12f;
         #endregion
         [Space]
         #region RotatingAxis Variables
-        public Transform[] halfCircles;
-        public GameObject[] otherHalfCircles;
-        public Transform halfCircleHighlighted;
-        public GameObject otherHalfCircleHighlighted;
-        public Transform activeCircle;
-        public Transform activeSnapCircle;
-        public Transform activeRotationIndicator;
-        public Transform circleLineOne;
-        public Transform circleLineTwo;
-        public Material activeRotationIndicatorMat;
-        public float circleRadius = 44f;
+        [SerializeField] private Transform[] halfCircles;
+        [SerializeField] private GameObject[] otherHalfCircles;
+        [SerializeField] private Transform halfCircleHighlighted;
+        [SerializeField] private GameObject otherHalfCircleHighlighted;
+        [SerializeField] private Transform activeCircle;
+        [SerializeField] private Transform activeSnapCircle;
+        [SerializeField] private Transform activeRotationIndicator;
+        [SerializeField] private Transform circleLineOne;
+        [SerializeField] private Transform circleLineTwo;
+        [SerializeField] private Material activeRotationIndicatorMat;
+        [SerializeField] private float circleRadius = 44f;
         #endregion
         [Space] // DEBUG
-        public Transform[] debugIntersects;
-        public Transform debugIndicatorOne;
-        public Transform debugIndicatorTwo;
+        [SerializeField] private Transform[] debugIntersects;
+        [SerializeField] private Transform debugIndicatorOne;
+        [SerializeField] private Transform debugIndicatorTwo;
 
         private const float MaxAllowedProximity = 5f;
 
