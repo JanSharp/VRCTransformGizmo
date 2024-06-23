@@ -26,7 +26,7 @@ namespace JanSharp
         [SerializeField] private Transform[] arrows;
         [SerializeField] private Transform[] highlightedArrows;
         [SerializeField] private Transform[] activeArrows;
-        [SerializeField] private float arrowLength = 12f;
+        [SerializeField] private float arrowLength = 40f;
         #endregion
         [Space]
         #region MovingPlane Variables
@@ -49,6 +49,19 @@ namespace JanSharp
         [SerializeField] private MeshRenderer activeRotationIndicatorRenderer;
         private Material activeRotationIndicatorMat; // Set in Start.
         [SerializeField] private float circleRadius = 44f;
+        #endregion
+        [Space]
+        #region ScalingAxis Variables
+        [SerializeField] private Transform[] scalers;
+        [SerializeField] private float axisScalerSize = 3f;
+        [SerializeField] private float axisScalerPosition = 55f;
+        #endregion
+        [Space]
+        #region ScalingWhole Variables
+        [SerializeField] private Transform wholeScaler;
+        [SerializeField] private Transform highlightedWholeScaler;
+        [SerializeField] private Transform activeWholeScaler;
+        [SerializeField] private float wholeScalerSize = 5f;
         #endregion
         [Space] // DEBUG
         [SerializeField] private Transform[] debugIntersects;
@@ -163,6 +176,7 @@ namespace JanSharp
                 activeArrows[i].gameObject.SetActive(false);
                 planes[i].gameObject.SetActive(false);
                 halfCircles[i].gameObject.SetActive(false);
+                scalers[i].gameObject.SetActive(false);
             }
             activePlane.gameObject.SetActive(false);
             activeCircle.gameObject.SetActive(false);
@@ -170,6 +184,8 @@ namespace JanSharp
             activeRotationIndicator.gameObject.SetActive(false);
             circleLineOne.gameObject.SetActive(false);
             circleLineTwo.gameObject.SetActive(false);
+            wholeScaler.gameObject.SetActive(false);
+            activeWholeScaler.gameObject.SetActive(false);
         }
 
         private void EnterWaitingState()
@@ -179,7 +195,9 @@ namespace JanSharp
                 arrows[i].gameObject.SetActive(true);
                 planes[i].gameObject.SetActive(true);
                 halfCircles[i].gameObject.SetActive(true);
+                scalers[i].gameObject.SetActive(true);
             }
+            wholeScaler.gameObject.SetActive(true);
         }
 
         private void EnterMovingAxisState()
