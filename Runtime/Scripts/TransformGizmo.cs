@@ -56,6 +56,8 @@ namespace JanSharp
         [Space]
         #region ScalingAxis Vars
         [SerializeField] private Transform[] scalers;
+        [SerializeField] private Transform[] highlightedScalers;
+        [SerializeField] private Transform[] activeScalers;
         [SerializeField] private float axisScalerSize = 3f;
         [SerializeField] private float axisScalerPosition = 55f;
         #endregion
@@ -178,6 +180,7 @@ namespace JanSharp
                 planes[i].gameObject.SetActive(false);
                 halfCircles[i].gameObject.SetActive(false);
                 scalers[i].gameObject.SetActive(false);
+                activeScalers[i].gameObject.SetActive(false);
             }
             activePlane.gameObject.SetActive(false);
             activeCircle.gameObject.SetActive(false);
@@ -203,7 +206,9 @@ namespace JanSharp
 
         private void EnterMovingAxisState()
         {
-
+            for (int i = 0; i < 3; i++)
+                arrows[i].gameObject.SetActive(i != highlightedAxis);
+            activeArrows[highlightedAxis].gameObject.SetActive(true);
         }
 
         private void EnterMovingPlaneState()
@@ -232,12 +237,17 @@ namespace JanSharp
 
         private void EnterScalingAxisState()
         {
-
+            for (int i = 0; i < 3; i++)
+                scalers[i].gameObject.SetActive(i != highlightedAxis);
+            activeScalers[highlightedAxis].gameObject.SetActive(true);
+            wholeScaler.gameObject.SetActive(true);
         }
 
         private void EnterScalingWholeState()
         {
-
+            for (int i = 0; i < 3; i++)
+                activeScalers[i].gameObject.SetActive(true);
+            activeWholeScaler.gameObject.SetActive(true);
         }
 
         #endregion
@@ -393,11 +403,17 @@ namespace JanSharp
         {
             for (int i = 0; i < 3; i++)
             {
+                arrows[i].gameObject.SetActive(true);
+                highlightedArrows[i].gameObject.SetActive(false);
                 planes[i].gameObject.SetActive(true);
                 halfCircles[i].gameObject.SetActive(true);
                 halfCircleHighlighted.gameObject.SetActive(false);
+                scalers[i].gameObject.SetActive(true);
+                highlightedScalers[i].gameObject.SetActive(false);
             }
             highlightedPlane.gameObject.SetActive(false);
+            wholeScaler.gameObject.SetActive(true);
+            highlightedWholeScaler.gameObject.SetActive(false);
         }
 
         private void UpdateCurrentHighlight()
@@ -426,7 +442,8 @@ namespace JanSharp
 
         private void UpdateMovingAxisHighlight()
         {
-
+            arrows[highlightedAxis].gameObject.SetActive(false);
+            highlightedArrows[highlightedAxis].gameObject.SetActive(true);
         }
 
         private void UpdateMovingPlaneHighlight()
@@ -447,14 +464,15 @@ namespace JanSharp
 
         private void UpdateScalingAxisHighlight()
         {
-
+            scalers[highlightedAxis].gameObject.SetActive(false);
+            highlightedScalers[highlightedAxis].gameObject.SetActive(true);
         }
 
         private void UpdateScalingWholeHighlight()
         {
-
+            wholeScaler.gameObject.SetActive(false);
+            highlightedWholeScaler.gameObject.SetActive(true);
         }
-
 
         #endregion
 
@@ -542,8 +560,13 @@ namespace JanSharp
             return Vector3.Dot(intersection, headToTargetDir) <= 0f;
         }
 
+        #endregion
+
+        #region Proximity Checks
+
         private float GetProximityMultiplier(int axisIndex)
         {
+            // TODO: This thing is so whacky, especially when you're looking parallel to an arrow for example.
             return 1f / ((headDir / headDir[axisIndex]).magnitude * maxAllowedProximity);
         }
 
@@ -561,12 +584,48 @@ namespace JanSharp
                     SetHighlightedStateToRotatingAxis(proximity, axisIndex, intersection);
             }
 
+            { // ScalingWhole
+                float proximity = depthProximity + Mathf.Max(0f, intersection.magnitude - wholeScalerSize / 2f) / maxAllowedProximity;
+                if (proximity < highlightedProximity)
+                    SetHighlightedStateToScalingWhole(depthProximity, intersection);
+            }
+
             { // MovingPlane
                 Vector3 shifted = intersection - planes[axisIndex].localPosition;
                 float maxDistance = Mathf.Max(Mathf.Abs(shifted.x), Mathf.Abs(shifted.y), Mathf.Abs(shifted.z));
                 if (depthProximity < highlightedProximity && maxDistance <= planeSize / 2f)
                     SetHighlightedStateToMovingPlane(depthProximity, axisIndex, intersection);
             }
+
+            for (int i = 0; i < 3; i++)
+            {
+                if (i == axisIndex || intersection[i] < 0f)
+                    continue;
+
+                { // MovingAxis
+                    Vector3 semiProjected = intersection;
+                    semiProjected[i] = Mathf.Max(0f, semiProjected[i] - arrowLength) / proximityMultiplier;
+                    float proximity = depthProximity + semiProjected.magnitude * proximityMultiplier;
+                    if (proximity < highlightedProximity)
+                        SetHighlightedStateToMovingAxis(depthProximity, i, intersection);
+                }
+
+                { // ScalingAxis
+                    Vector3 shifted = intersection - axisDirs[i] * axisScalerPosition;
+                    // axisScalerSize should be used as a radius here, which means it should be divided by 2,
+                    // but for more proximity it's also getting multiplied by 2 so the cancel each other out.
+                    float proximity = depthProximity + Mathf.Max(0f, shifted.magnitude - axisScalerSize / 2f) / maxAllowedProximity;
+                    if (proximity < highlightedProximity)
+                        SetHighlightedStateToScalingAxis(depthProximity, i, intersection);
+                }
+            }
+        }
+
+        private void SetHighlightedStateToMovingAxis(float proximity, int axisIndex, Vector3 intersection)
+        {
+            highlightedState = TransformGizmoState.MovingAxis;
+            highlightedProximity = proximity;
+            highlightedAxis = axisIndex;
         }
 
         private void SetHighlightedStateToMovingPlane(float proximity, int axisIndex, Vector3 intersection)
@@ -590,6 +649,19 @@ namespace JanSharp
             prevRotation = tracked.rotation;
             localRotationDirection = tangentRotations[axisIndex] * intersection.normalized;
             prevOffset = Quaternion.identity;
+        }
+
+        private void SetHighlightedStateToScalingAxis(float proximity, int axisIndex, Vector3 intersection)
+        {
+            highlightedState = TransformGizmoState.ScalingAxis;
+            highlightedProximity = proximity;
+            highlightedAxis = axisIndex;
+        }
+
+        private void SetHighlightedStateToScalingWhole(float proximity, Vector3 intersection)
+        {
+            highlightedState = TransformGizmoState.ScalingWhole;
+            highlightedProximity = proximity;
         }
 
         #endregion
