@@ -1,4 +1,4 @@
-using UdonSharp;
+﻿using UdonSharp;
 using UnityEngine;
 using VRC.SDKBase;
 using VRC.Udon;
@@ -73,6 +73,9 @@ namespace JanSharp
         private Vector3 headLocal;
 
         private Vector3 planeOriginIntersection;
+        private Vector3 planeStartPosition;
+        private Vector3 planeTotalMovement;
+        private float originGizmoScale;
 
         private TransformGizmoState highlightedState;
         private float highlightedProximity;
@@ -265,18 +268,30 @@ namespace JanSharp
 
         private void MovingPlane()
         {
-            // TODO: snapping
             // TODO: highlight the 2 arrows that lay on the plane the object is moving on
 
             if (!TryGetIntersection(highlightedAxis, out Vector3 intersection))
                 return;
 
-            Vector3 movementToApply = tracked.rotation * ((intersection - planeOriginIntersection) * gizmoScale);
-            tracked.position += movementToApply;
+            bool snapping = Input.GetKey(KeyCode.LeftControl);
 
-            CalculateSharedVariables();
-            if (TryGetIntersection(highlightedAxis, out intersection))
-                planeOriginIntersection = intersection; // Prevent bobbing due to scale changes.
+            // Shifted to prevent bobbing caused by scale differences at different positions.
+            Vector3 shiftedOrigin = planeOriginIntersection * (originGizmoScale / gizmoScale);
+            Vector3 movementToApply = tracked.rotation * ((intersection - shiftedOrigin) * gizmoScale);
+            if (tracked.parent != null)
+                movementToApply = tracked.parent.InverseTransformVector(movementToApply);
+            planeTotalMovement += movementToApply;
+            if (snapping)
+            {
+                planeTotalMovement = Quaternion.Inverse(tracked.localRotation) * planeTotalMovement;
+                planeTotalMovement.x = Mathf.Round(planeTotalMovement.x / 0.25f) * 0.25f;
+                planeTotalMovement.y = Mathf.Round(planeTotalMovement.y / 0.25f) * 0.25f;
+                planeTotalMovement.z = Mathf.Round(planeTotalMovement.z / 0.25f) * 0.25f;
+                planeTotalMovement = tracked.localRotation * planeTotalMovement;
+            }
+            tracked.localPosition = planeStartPosition + planeTotalMovement;
+
+            CalculateSharedVariables(); // TODO: only recalculate the scale, the rest isn't needed.
         }
 
         private void RotatingAxis()
@@ -476,6 +491,7 @@ namespace JanSharp
                 intersection = new Vector3();
                 return false;
             }
+            // TODO: cap at 1000 distance from head
             intersection = GetIntersection(axisIndex);
             return true;
         }
@@ -527,7 +543,10 @@ namespace JanSharp
             highlightedProximity = proximity;
             highlightedAxis = axisIndex;
 
+            planeStartPosition = tracked.localPosition;
+            planeTotalMovement = new Vector3();
             planeOriginIntersection = intersection;
+            originGizmoScale = gizmoScale;
         }
 
         private void SetHighlightedStateToRotatingAxis(float proximity, int axisIndex, Vector3 intersection)
