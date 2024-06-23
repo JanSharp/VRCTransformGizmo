@@ -28626,6 +28626,8 @@ MonoBehaviour:
   tracked: {fileID: 486119949}
   gizmo: {fileID: 1088200705}
   inverseScale: 200
+  maxAllowedProximity: 5
+  maxIntersectionDistance: 800
   arrows:
   - {fileID: 958750739}
   - {fileID: 135871545}

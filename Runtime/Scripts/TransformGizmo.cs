@@ -21,22 +21,25 @@ namespace JanSharp
         [SerializeField] private Transform tracked;
         [SerializeField] private Transform gizmo;
         [SerializeField] private float inverseScale = 200f;
+        [SerializeField] private float maxAllowedProximity = 5f;
+        [Tooltip("Should be less than or equal to the far clipping plane.")]
+        [SerializeField] private float maxIntersectionDistance = 800f;
         [Space]
-        #region MovingAxis Variables
+        #region MovingAxis Vars
         [SerializeField] private Transform[] arrows;
         [SerializeField] private Transform[] highlightedArrows;
         [SerializeField] private Transform[] activeArrows;
         [SerializeField] private float arrowLength = 40f;
         #endregion
         [Space]
-        #region MovingPlane Variables
+        #region MovingPlane Vars
         [SerializeField] private Transform[] planes;
         [SerializeField] private Transform highlightedPlane;
         [SerializeField] private Transform activePlane;
         [SerializeField] private float planeSize = 12f;
         #endregion
         [Space]
-        #region RotatingAxis Variables
+        #region RotatingAxis Vars
         [SerializeField] private Transform[] halfCircles;
         [SerializeField] private GameObject[] otherHalfCircles;
         [SerializeField] private Transform halfCircleHighlighted;
@@ -51,13 +54,13 @@ namespace JanSharp
         [SerializeField] private float circleRadius = 44f;
         #endregion
         [Space]
-        #region ScalingAxis Variables
+        #region ScalingAxis Vars
         [SerializeField] private Transform[] scalers;
         [SerializeField] private float axisScalerSize = 3f;
         [SerializeField] private float axisScalerPosition = 55f;
         #endregion
         [Space]
-        #region ScalingWhole Variables
+        #region ScalingWhole Vars
         [SerializeField] private Transform wholeScaler;
         [SerializeField] private Transform highlightedWholeScaler;
         [SerializeField] private Transform activeWholeScaler;
@@ -67,8 +70,6 @@ namespace JanSharp
         [SerializeField] private Transform[] debugIntersects;
         [SerializeField] private Transform debugIndicatorOne;
         [SerializeField] private Transform debugIndicatorTwo;
-
-        private const float MaxAllowedProximity = 5f;
 
         private Quaternion[] tangentRotations = new Quaternion[]
         {
@@ -523,9 +524,8 @@ namespace JanSharp
                 intersection = new Vector3();
                 return false;
             }
-            // TODO: cap at 1000 distance from head
             intersection = GetIntersection(axisIndex);
-            return true;
+            return (intersection - headLocal).magnitude * gizmoScale <= maxIntersectionDistance;
         }
 
         private Vector3 GetIntersection(int axisIndex)
@@ -544,7 +544,7 @@ namespace JanSharp
 
         private float GetProximityMultiplier(int axisIndex)
         {
-            return 1f / ((headDir / headDir[axisIndex]).magnitude * MaxAllowedProximity);
+            return 1f / ((headDir / headDir[axisIndex]).magnitude * maxAllowedProximity);
         }
 
         private void CheckProximity(int axisIndex)
