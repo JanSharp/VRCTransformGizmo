@@ -96,6 +96,10 @@ namespace JanSharp
         private Vector3 headDir;
         private Vector3 headLocal;
 
+        private float axisOriginIntersection;
+        private Vector3 axisStartPosition;
+        private float axisTotalMovement;
+
         private Vector3 planeOriginIntersection;
         private Vector3 planeStartPosition;
         private Vector3 planeTotalMovement;
@@ -309,14 +313,24 @@ namespace JanSharp
 
         private void MovingAxis()
         {
-
+            if (!TryGetIntersection((highlightedAxis + 1) % 3, out Vector3 intersectionOne))
+                return;
+            if (!TryGetIntersection((highlightedAxis + 2) % 3, out Vector3 intersectionTwo))
+                return;
+            Vector3 projected = new Vector3();
+            projected[highlightedAxis] = (intersectionOne[highlightedAxis] + intersectionTwo[highlightedAxis]) / 2f;
+            Moving(projected);
         }
 
         private void MovingPlane()
         {
             if (!TryGetIntersection(highlightedAxis, out Vector3 intersection))
                 return;
+            Moving(intersection);
+        }
 
+        private void Moving(Vector3 intersection)
+        {
             bool snapping = Input.GetKey(KeyCode.LeftControl);
 
             // Shifted to prevent bobbing caused by scale differences at different positions.
@@ -636,6 +650,13 @@ namespace JanSharp
             highlightedState = TransformGizmoState.MovingAxis;
             highlightedProximity = proximity;
             highlightedAxis = axisIndex;
+
+            Vector3 projected = new Vector3();
+            projected[axisIndex] = intersection[axisIndex];
+            planeOriginIntersection = projected;
+            planeStartPosition = tracked.localPosition;
+            planeTotalMovement = new Vector3();
+            originGizmoScale = gizmoScale;
         }
 
         private void SetHighlightedStateToMovingPlane(float proximity, int axisIndex, Vector3 intersection)
@@ -644,9 +665,9 @@ namespace JanSharp
             highlightedProximity = proximity;
             highlightedAxis = axisIndex;
 
+            planeOriginIntersection = intersection;
             planeStartPosition = tracked.localPosition;
             planeTotalMovement = new Vector3();
-            planeOriginIntersection = intersection;
             originGizmoScale = gizmoScale;
         }
 
