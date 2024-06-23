@@ -124,6 +124,7 @@ namespace JanSharp
 
         private void Update()
         {
+            headTrackingData = localPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
             CalculateSharedVariables();
 
             for (int i = 0; i < 3; i++)
@@ -334,7 +335,7 @@ namespace JanSharp
             }
             tracked.localPosition = planeStartPosition + planeTotalMovement;
 
-            CalculateSharedVariables(); // TODO: only recalculate the scale, the rest isn't needed.
+            CalculateGizmoScale();
         }
 
         private void RotatingAxis()
@@ -344,11 +345,7 @@ namespace JanSharp
 
             if (!TryGetIntersection(highlightedAxis, out Vector3 intersection))
             {
-                for (int i = 0; i < 3; i++)
-                    if (i != highlightedAxis)
-                        FaceCircleTowardsHead(i);
-                if (snapping)
-                    UpdateSnappingCircleHighlight();
+                FinishRotatingAxis(snapping);
                 return;
             }
 
@@ -377,7 +374,12 @@ namespace JanSharp
             circleLineTwo.localRotation = originRotation * Quaternion.Euler(0f, totalMovement, 0f);
             activeRotationIndicatorMat.SetFloat("_Angle", totalMovement);
 
-            // TODO: recalculate stuff since the tracked rotation changed and the gizmo has also been rotated.
+            CalculateHeadRelatedVariables();
+            FinishRotatingAxis(snapping);
+        }
+
+        private void FinishRotatingAxis(bool snapping)
+        {
             for (int i = 0; i < 3; i++)
                 if (i != highlightedAxis)
                     FaceCircleTowardsHead(i);
@@ -478,11 +480,13 @@ namespace JanSharp
 
         #region Util/Other
 
-        private void CalculateSharedVariables()
+        private void CalculateGizmoScale()
         {
-            headTrackingData = localPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
             gizmoScale = Vector3.Distance(tracked.position, headTrackingData.position) / inverseScale;
+        }
 
+        private void CalculateHeadRelatedVariables()
+        {
             headToTargetDir = (tracked.position - headTrackingData.position).normalized;
             if (headToTargetDir == Vector3.zero)
                 headToTargetDir = Vector3.forward;
@@ -490,6 +494,12 @@ namespace JanSharp
 
             headDir = Quaternion.Inverse(tracked.rotation) * headTrackingData.rotation * Vector3.forward;
             headLocal = Quaternion.Inverse(tracked.rotation) * (headTrackingData.position - tracked.position) / gizmoScale;
+        }
+
+        private void CalculateSharedVariables()
+        {
+            CalculateGizmoScale();
+            CalculateHeadRelatedVariables();
         }
 
         private void FacePlaneTowardsHead(int axisIndex)
