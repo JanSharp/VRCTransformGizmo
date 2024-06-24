@@ -119,9 +119,12 @@ namespace JanSharp
         private Vector3 localRotationDirection;
         private Quaternion prevOffset;
 
-        // ScalingAxis.
+        // ScalingAxis and ScalingWhole.
         private float offsetFromOrigin;
         private Vector3 startScale;
+
+        // ScalingWhole.
+        private Vector3 freeformPlaneRight;
 
         #region Unity Events
 
@@ -408,14 +411,7 @@ namespace JanSharp
             if (!TryGetIntersectionOnPlane(freeformReferencePlane, out Vector3 intersection))
                 return;
 
-            bool snapping = Input.GetKey(KeyCode.LeftControl);
-
-            float distance = Vector3.Project(intersection, axisDirs[highlightedAxis]).magnitude - offsetFromOrigin;
-            if (Vector3.Dot(intersection, axisDirs[highlightedAxis]) < 0f)
-                distance = -distance;
-            distance /= axisScalerPosition;
-            if (snapping)
-                distance = Mathf.Round(distance);
+            float distance = GetScalingDistance(axisDirs[highlightedAxis], intersection);
 
             Vector3 scale = startScale;
             scale[highlightedAxis] *= distance;
@@ -426,7 +422,28 @@ namespace JanSharp
 
         private void ScalingWhole()
         {
+            if (!TryGetIntersectionOnPlane(freeformReferencePlane, out Vector3 intersection))
+                return;
 
+            float distance = GetScalingDistance(freeformPlaneRight, intersection);
+            distance += 1f;
+
+            tracked.localScale = startScale * distance;
+
+            for (int i = 0; i < 3; i++)
+                UpdateScalerLineAndCube(i, distance * axisScalerPosition);
+        }
+
+        private float GetScalingDistance(Vector3 rightDir, Vector3 intersection)
+        {
+            bool snapping = Input.GetKey(KeyCode.LeftControl);
+
+            float distance = (Vector3.Project(intersection, rightDir).magnitude - offsetFromOrigin) / axisScalerPosition;
+            if (Vector3.Dot(intersection, rightDir) < 0f)
+                distance = -distance;
+            if (snapping)
+                distance = Mathf.Round(distance);
+            return distance;
         }
 
         private void UpdateScalerLineAndCube(int axisIndex, float pos)
@@ -754,6 +771,11 @@ namespace JanSharp
         {
             highlightedState = TransformGizmoState.ScalingWhole;
             highlightedProximity = proximity;
+
+            freeformReferencePlane = headDir;
+            freeformPlaneRight = new Vector3(headDir.z, headDir.y, -headDir.x);
+            offsetFromOrigin = Vector3.Project(GetIntersectionOnPlane(freeformReferencePlane), freeformPlaneRight).magnitude;
+            startScale = tracked.localScale;
         }
 
         #endregion
