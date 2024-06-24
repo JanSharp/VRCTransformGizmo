@@ -58,6 +58,8 @@ namespace JanSharp
         [SerializeField] private Transform[] scalers;
         [SerializeField] private Transform[] highlightedScalers;
         [SerializeField] private Transform[] activeScalers;
+        [SerializeField] private Transform[] activeScalerLines;
+        [SerializeField] private Transform[] activeScalerCubes;
         [SerializeField] private float axisScalerSize = 3f;
         [SerializeField] private float axisScalerPosition = 55f;
         #endregion
@@ -96,13 +98,6 @@ namespace JanSharp
         private Vector3 headDir;
         private Vector3 headLocal;
 
-        private Vector3 freeformReferencePlane;
-
-        private Vector3 planeOriginIntersection;
-        private Vector3 planeStartPosition;
-        private Vector3 planeTotalMovement;
-        private float originGizmoScale;
-
         private TransformGizmoState highlightedState;
         private float highlightedProximity;
         private int highlightedAxis;
@@ -110,10 +105,23 @@ namespace JanSharp
         // Waiting.
         private bool[] showFullCircle = new bool[3];
 
-        // Rotating Axis.
+        // MovingAxis and ScalingAxis.
+        private Vector3 freeformReferencePlane;
+
+        // MovingAxis and MovingPlane.
+        private float originGizmoScale;
+        private Vector3 planeOriginIntersection;
+        private Vector3 planeStartPosition;
+        private Vector3 planeTotalMovement;
+
+        // RotatingAxis.
         private Quaternion prevRotation;
         private Vector3 localRotationDirection;
         private Quaternion prevOffset;
+
+        // ScalingAxis.
+        private float offsetFromOrigin;
+        private Vector3 startScale;
 
         #region Unity Events
 
@@ -397,12 +405,38 @@ namespace JanSharp
 
         private void ScalingAxis()
         {
+            if (!TryGetIntersectionOnPlane(freeformReferencePlane, out Vector3 intersection))
+                return;
 
+            bool snapping = Input.GetKey(KeyCode.LeftControl);
+
+            float distance = Vector3.Project(intersection, axisDirs[highlightedAxis]).magnitude - offsetFromOrigin;
+            if (Vector3.Dot(intersection, axisDirs[highlightedAxis]) < 0f)
+                distance = -distance;
+            distance /= axisScalerPosition;
+            if (snapping)
+                distance = Mathf.Round(distance);
+
+            Vector3 scale = startScale;
+            scale[highlightedAxis] *= distance;
+            tracked.localScale = scale;
+
+            UpdateScalerLineAndCube(highlightedAxis, distance * axisScalerPosition);
         }
 
         private void ScalingWhole()
         {
 
+        }
+
+        private void UpdateScalerLineAndCube(int axisIndex, float pos)
+        {
+            activeScalerCubes[axisIndex].localPosition = Vector3.forward * pos;
+            float length = Mathf.Abs(pos) - (axisScalerSize + wholeScalerSize) / 2f;
+            Transform line = activeScalerLines[axisIndex];
+            line.gameObject.SetActive(length > 0f);
+            line.localPosition = Vector3.forward * Mathf.Min(wholeScalerSize / 2f, pos + axisScalerSize / 2f);
+            line.localScale = new Vector3(1f, 1f, length);
         }
 
         #endregion
@@ -656,17 +690,24 @@ namespace JanSharp
             }
         }
 
-        private void TrySetHighlightedStateToMovingAxis(float proximity, int axisIndex, Vector3 intersection)
+        private bool TrySetFreeformReferencePlane(int axisIndex)
         {
             Vector3 plane = (headDir - Vector3.Project(headDir, axisDirs[axisIndex])).normalized;
             if (plane == Vector3.zero)
+                return false;
+            freeformReferencePlane = plane;
+            return true;
+        }
+
+        private void TrySetHighlightedStateToMovingAxis(float proximity, int axisIndex, Vector3 intersection)
+        {
+            if (!TrySetFreeformReferencePlane(axisIndex))
                 return;
 
             highlightedState = TransformGizmoState.MovingAxis;
             highlightedProximity = proximity;
             highlightedAxis = axisIndex;
 
-            freeformReferencePlane = plane;
             planeOriginIntersection = Vector3.Project(GetIntersectionOnPlane(freeformReferencePlane), axisDirs[axisIndex]);
             planeStartPosition = tracked.localPosition;
             planeTotalMovement = new Vector3();
@@ -698,9 +739,15 @@ namespace JanSharp
 
         private void SetHighlightedStateToScalingAxis(float proximity, int axisIndex, Vector3 intersection)
         {
+            if (!TrySetFreeformReferencePlane(axisIndex))
+                return;
+
             highlightedState = TransformGizmoState.ScalingAxis;
             highlightedProximity = proximity;
             highlightedAxis = axisIndex;
+
+            offsetFromOrigin = Vector3.Project(GetIntersectionOnPlane(freeformReferencePlane), axisDirs[axisIndex]).magnitude - axisScalerPosition;
+            startScale = tracked.localScale;
         }
 
         private void SetHighlightedStateToScalingWhole(float proximity, Vector3 intersection)
