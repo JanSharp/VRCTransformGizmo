@@ -671,7 +671,7 @@ namespace JanSharp
             }
 
             { // ScalingWhole
-                float proximity = depthProximity + Mathf.Max(0f, intersection.magnitude - wholeScalerSize / 2f) / maxAllowedProximity;
+                float proximity = depthProximity / 1.5f + Mathf.Max(0f, intersection.magnitude - wholeScalerSize / 2f) / maxAllowedProximity;
                 if (proximity < highlightedProximity)
                     SetHighlightedStateToScalingWhole(depthProximity, intersection);
             }
