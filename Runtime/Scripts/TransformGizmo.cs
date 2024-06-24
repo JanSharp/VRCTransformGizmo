@@ -132,7 +132,13 @@ namespace JanSharp
         {
             localPlayer = Networking.LocalPlayer;
             activeRotationIndicatorMat = activeRotationIndicatorRenderer.material;
+
+            headTrackingData = localPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
+            CalculateSharedVariables();
             EnterState(TransformGizmoState.Waiting);
+            // Prevent the gizmo highlights and such from jumping around due to using old position and rotation.
+            gizmo.localScale = Vector3.one * gizmoScale;
+            gizmo.SetPositionAndRotation(tracked.position, tracked.rotation);
         }
 
         private void Update()
