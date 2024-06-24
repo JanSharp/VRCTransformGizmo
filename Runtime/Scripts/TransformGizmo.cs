@@ -658,6 +658,10 @@ namespace JanSharp
 
         private void CheckProximity(int axisIndex)
         {
+            // NOTE: nothing gets hidden if the angle is too steep, which may be undesired. However this works
+            // and since the view point changes and the "ray cast" source is different than, well, the cursor
+            // in the unity editor, it is actually a bit more odd for the user for things to disappear.
+
             if (!TryGetIntersection(axisIndex, out Vector3 intersection))
                 return;
 
