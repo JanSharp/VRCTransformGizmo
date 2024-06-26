@@ -20,8 +20,6 @@ namespace JanSharp
     public class TransformGizmo : UdonSharpBehaviour
     {
         [PublicAPI]
-        public TransformGizmoBridge bridge;
-        [PublicAPI]
         [Tooltip("Should be less than or equal to the far clipping plane.")]
         public float maxIntersectionDistance = 800f;
         private const float InverseScale = 200f;
@@ -94,6 +92,7 @@ namespace JanSharp
 
         private VRCPlayerApi localPlayer;
 
+        private TransformGizmoBridge bridge;
         private Transform tracked;
 
         private TransformGizmoState state;
@@ -140,8 +139,7 @@ namespace JanSharp
 
         private void Start()
         {
-            localPlayer = Networking.LocalPlayer;
-            activeRotationIndicatorMat = activeRotationIndicatorRenderer.material;
+            Init();
         }
 
         private void Update()
@@ -160,6 +158,12 @@ namespace JanSharp
         }
 
         #endregion
+
+        private void Init()
+        {
+            localPlayer = Networking.LocalPlayer;
+            activeRotationIndicatorMat = activeRotationIndicatorRenderer.material;
+        }
 
         private void PrepareForStateUpdate()
         {
@@ -188,25 +192,44 @@ namespace JanSharp
         public TransformGizmoState HighlightedState => highlightedState;
 
         [PublicAPI]
-        public Transform Tracked
-        {
-            get => tracked;
-            set
-            {
-                if (tracked == value)
-                    return;
-                tracked = value;
-                if (tracked == null)
-                {
-                    DisableAllHighlights();
-                    DisableEverything();
-                    return;
-                }
+        public TransformGizmoBridge Bridge => bridge;
+        [PublicAPI]
+        public Transform Tracked => tracked;
 
-                PrepareForStateUpdate();
-                EnterState(TransformGizmoState.Waiting);
-                UpdateGizmoTransform();
+        [PublicAPI]
+        public void SetTracked(Transform tracked, TransformGizmoBridge bridge)
+        {
+            if (this.tracked == tracked && this.bridge == bridge)
+                return;
+            if ((tracked == null) != (bridge == null))
+            {
+                Debug.LogError($"[TransformGizmo] Attempt to SetTracked where "
+                    + $"tracked is{(tracked == null ? "" : "not ")} null and "
+                    + $"bridge is{(bridge == null ? "" : "not ")} null. They must either both be null or "
+                    + $"both be not null. Ignoring.");
+                return;
             }
+
+            this.tracked = tracked;
+            this.bridge = bridge;
+            if (tracked == null)
+            {
+                DisableAllHighlights();
+                DisableEverything();
+                return;
+            }
+
+            if (localPlayer == null)
+                Init();
+            PrepareForStateUpdate();
+            EnterState(TransformGizmoState.Waiting);
+            UpdateGizmoTransform();
+        }
+
+        public void UnsetTracked()
+        {
+            bridge = null;
+            tracked = null;
         }
 
         /// <summary>
