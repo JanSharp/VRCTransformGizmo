@@ -2,6 +2,7 @@
 using UnityEngine;
 using VRC.SDKBase;
 using VRC.Udon;
+using JetBrains.Annotations;
 
 namespace JanSharp
 {
@@ -18,25 +19,27 @@ namespace JanSharp
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
     public class TransformGizmo : UdonSharpBehaviour
     {
-        private Transform tracked;
-        [SerializeField] private Transform gizmo;
-        [SerializeField] private float inverseScale = 200f;
-        [SerializeField] private float maxAllowedProximity = 5f;
+        [PublicAPI]
+        public TransformGizmoBridge bridge;
+        [PublicAPI]
         [Tooltip("Should be less than or equal to the far clipping plane.")]
-        [SerializeField] private float maxIntersectionDistance = 800f;
+        public float maxIntersectionDistance = 800f;
+        private const float InverseScale = 200f;
+        private const float MaxAllowedProximity = 5f;
         [Space]
+        [Header("Internal")]
         #region MovingAxis Vars
         [SerializeField] private Transform[] arrows;
         [SerializeField] private Transform[] highlightedArrows;
         [SerializeField] private Transform[] activeArrows;
-        [SerializeField] private float arrowLength = 40f;
+        private const float ArrowLength = 40f;
         #endregion
         [Space]
         #region MovingPlane Vars
         [SerializeField] private Transform[] planes;
         [SerializeField] private Transform highlightedPlane;
         [SerializeField] private Transform activePlane;
-        [SerializeField] private float planeSize = 12f;
+        private const float PlaneSize = 16f;
         #endregion
         [Space]
         #region RotatingAxis Vars
@@ -51,7 +54,7 @@ namespace JanSharp
         [SerializeField] private Transform circleLineTwo;
         [SerializeField] private MeshRenderer activeRotationIndicatorRenderer;
         private Material activeRotationIndicatorMat; // Set in Start.
-        [SerializeField] private float circleRadius = 44f;
+        private const float CircleRadius = 44f;
         #endregion
         [Space]
         #region ScalingAxis Vars
@@ -60,15 +63,15 @@ namespace JanSharp
         [SerializeField] private Transform[] activeScalers;
         [SerializeField] private Transform[] activeScalerLines;
         [SerializeField] private Transform[] activeScalerCubes;
-        [SerializeField] private float axisScalerSize = 3f;
-        [SerializeField] private float axisScalerPosition = 55f;
+        private const float AxisScalerSize = 3f;
+        private const float AxisScalerPosition = 55f;
         #endregion
         [Space]
         #region ScalingWhole Vars
         [SerializeField] private Transform wholeScaler;
         [SerializeField] private Transform highlightedWholeScaler;
         [SerializeField] private Transform activeWholeScaler;
-        [SerializeField] private float wholeScalerSize = 5f;
+        private const float WholeScalerSize = 5f;
         #endregion
         [Space] // DEBUG
         [SerializeField] private Transform[] debugIntersects;
@@ -91,8 +94,11 @@ namespace JanSharp
 
         private VRCPlayerApi localPlayer;
 
+        private Transform tracked;
+
         private TransformGizmoState state;
-        private VRCPlayerApi.TrackingData headTrackingData;
+        private Vector3 headTrackingPosition;
+        private Quaternion headTrackingRotation;
         private float gizmoScale;
         private Vector3 headToTargetDir;
         private Vector3 headDir;
@@ -139,41 +145,95 @@ namespace JanSharp
             if (tracked == null)
                 return;
 
-            headTrackingData = localPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
-            CalculateSharedVariables();
+            PrepareForStateUpdate();
 
-            for (int i = 0; i < 3; i++)
-                debugIntersects[i].gameObject.SetActive(false);
-
-            if (state != TransformGizmoState.Waiting && Input.GetMouseButtonUp(0))
+            if (state != TransformGizmoState.Waiting && bridge.DeactivateThisFrame())
                 EnterState(TransformGizmoState.Waiting); // Also calls UpdateCurrentState().
             else
                 UpdateCurrentState();
 
-            // Prevent the gizmo highlights and such from jumping around due to using old position and rotation.
-            gizmo.localScale = Vector3.one * gizmoScale;
-            gizmo.SetPositionAndRotation(tracked.position, tracked.rotation);
+            UpdateGizmoTransform();
         }
 
         #endregion
 
-        public void SetTracked(Transform tracked)
+        private void PrepareForStateUpdate()
         {
-            this.tracked = tracked;
-            if (tracked == null)
-            {
-                DisableAllHighlights();
-                DisableEverything();
-                return;
-            }
-
-            headTrackingData = localPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
+            bridge.GetHead(out headTrackingPosition, out headTrackingRotation);
             CalculateSharedVariables();
-            EnterState(TransformGizmoState.Waiting);
-            // Prevent the gizmo highlights and such from jumping around due to using old position and rotation.
-            gizmo.localScale = Vector3.one * gizmoScale;
-            gizmo.SetPositionAndRotation(tracked.position, tracked.rotation);
+            for (int i = 0; i < 3; i++)
+                debugIntersects[i].gameObject.SetActive(false);
         }
+
+        /// <summary>
+        /// Do this last to prevent the gizmo highlights and such from jumping around due to using old
+        /// position and rotation.
+        /// </summary>
+        private void UpdateGizmoTransform()
+        {
+            this.transform.localScale = Vector3.one * gizmoScale;
+            this.transform.SetPositionAndRotation(tracked.position, tracked.rotation);
+        }
+
+        #region API
+
+        [PublicAPI]
+        public TransformGizmoState State => state;
+        [PublicAPI]
+        public TransformGizmoState HighlightedState => highlightedState;
+
+        [PublicAPI]
+        public Transform Tracked
+        {
+            get => tracked;
+            set
+            {
+                if (tracked == value)
+                    return;
+                tracked = value;
+                if (tracked == null)
+                {
+                    DisableAllHighlights();
+                    DisableEverything();
+                    return;
+                }
+
+                PrepareForStateUpdate();
+                EnterState(TransformGizmoState.Waiting);
+                UpdateGizmoTransform();
+            }
+        }
+
+        /// <summary>
+        /// <para>Call this for example when a button is pressed down.</para>
+        /// </summary>
+        [PublicAPI]
+        public void Activate()
+        {
+            if (tracked == null
+                || state != TransformGizmoState.Waiting
+                || highlightedState == TransformGizmoState.Waiting)
+                return;
+            PrepareForStateUpdate();
+            DisableAllHighlights();
+            EnterState(highlightedState);
+            UpdateGizmoTransform();
+        }
+
+        /// <summary>
+        /// <para>Call this for example when a button is released (up).</para>
+        /// </summary>
+        [PublicAPI]
+        public void Deactivate()
+        {
+            if (tracked == null || state == TransformGizmoState.Waiting)
+                return;
+            PrepareForStateUpdate();
+            EnterState(TransformGizmoState.Waiting);
+            UpdateGizmoTransform();
+        }
+
+        #endregion
 
         #region State Entering
 
@@ -331,7 +391,7 @@ namespace JanSharp
             if (highlightedState == TransformGizmoState.Waiting)
                 return;
 
-            if (Input.GetMouseButtonDown(0))
+            if (bridge.ActivateThisFrame())
             {
                 EnterState(highlightedState);
                 return;
@@ -356,7 +416,7 @@ namespace JanSharp
 
         private void Moving(Vector3 intersection)
         {
-            bool snapping = Input.GetKey(KeyCode.LeftControl);
+            bool snapping = bridge.SnappingThisFrame();
 
             // Shifted to prevent bobbing caused by scale differences at different positions.
             Vector3 shiftedOrigin = planeOriginIntersection * (originGizmoScale / gizmoScale);
@@ -379,7 +439,7 @@ namespace JanSharp
 
         private void RotatingAxis()
         {
-            bool snapping = Input.GetKey(KeyCode.LeftControl);
+            bool snapping = bridge.SnappingThisFrame();
             activeSnapCircle.gameObject.SetActive(snapping);
 
             if (!TryGetIntersection(highlightedAxis, out Vector3 intersection))
@@ -392,7 +452,7 @@ namespace JanSharp
             debugIndicatorTwo.localPosition = Vector3.Project(intersection, localRotationDirection);
 
             Vector3 projected = Vector3.Project(intersection, localRotationDirection);
-            float totalMovement = projected.magnitude / (circleRadius * Mathf.PI * 2f) * 360f;
+            float totalMovement = projected.magnitude / (CircleRadius * Mathf.PI * 2f) * 360f;
             if (snapping)
                 totalMovement = Mathf.Round(totalMovement / 15f) * 15f;
             totalMovement *= (Vector3.Dot(projected, localRotationDirection) < 0f ? -1f : 1f);
@@ -437,7 +497,7 @@ namespace JanSharp
             scale[highlightedAxis] *= distance;
             tracked.localScale = scale;
 
-            UpdateScalerLineAndCube(highlightedAxis, distance * axisScalerPosition);
+            UpdateScalerLineAndCube(highlightedAxis, distance * AxisScalerPosition);
         }
 
         private void ScalingWhole()
@@ -451,14 +511,14 @@ namespace JanSharp
             tracked.localScale = startScale * distance;
 
             for (int i = 0; i < 3; i++)
-                UpdateScalerLineAndCube(i, distance * axisScalerPosition);
+                UpdateScalerLineAndCube(i, distance * AxisScalerPosition);
         }
 
         private float GetScalingDistance(Vector3 rightDir, Vector3 intersection)
         {
-            bool snapping = Input.GetKey(KeyCode.LeftControl);
+            bool snapping = bridge.SnappingThisFrame();
 
-            float distance = (Vector3.Project(intersection, rightDir).magnitude - offsetFromOrigin) / axisScalerPosition;
+            float distance = (Vector3.Project(intersection, rightDir).magnitude - offsetFromOrigin) / AxisScalerPosition;
             if (Vector3.Dot(intersection, rightDir) < 0f)
                 distance = -distance;
             if (snapping)
@@ -469,10 +529,10 @@ namespace JanSharp
         private void UpdateScalerLineAndCube(int axisIndex, float pos)
         {
             activeScalerCubes[axisIndex].localPosition = Vector3.forward * pos;
-            float length = Mathf.Abs(pos) - (axisScalerSize + wholeScalerSize) / 2f;
+            float length = Mathf.Abs(pos) - (AxisScalerSize + WholeScalerSize) / 2f;
             Transform line = activeScalerLines[axisIndex];
             line.gameObject.SetActive(length > 0f);
-            line.localPosition = Vector3.forward * Mathf.Min(wholeScalerSize / 2f, pos + axisScalerSize / 2f);
+            line.localPosition = Vector3.forward * Mathf.Min(WholeScalerSize / 2f, pos + AxisScalerSize / 2f);
             line.localScale = new Vector3(1f, 1f, length);
         }
 
@@ -561,18 +621,18 @@ namespace JanSharp
 
         private void CalculateGizmoScale()
         {
-            gizmoScale = Vector3.Distance(tracked.position, headTrackingData.position) / inverseScale;
+            gizmoScale = Vector3.Distance(tracked.position, headTrackingPosition) / InverseScale;
         }
 
         private void CalculateHeadRelatedVariables()
         {
-            headToTargetDir = (tracked.position - headTrackingData.position).normalized;
+            headToTargetDir = (tracked.position - headTrackingPosition).normalized;
             if (headToTargetDir == Vector3.zero)
                 headToTargetDir = Vector3.forward;
             headToTargetDir = Quaternion.Inverse(tracked.rotation) * headToTargetDir;
 
-            headDir = Quaternion.Inverse(tracked.rotation) * headTrackingData.rotation * Vector3.forward;
-            headLocal = Quaternion.Inverse(tracked.rotation) * (headTrackingData.position - tracked.position) / gizmoScale;
+            headDir = Quaternion.Inverse(tracked.rotation) * headTrackingRotation * Vector3.forward;
+            headLocal = Quaternion.Inverse(tracked.rotation) * (headTrackingPosition - tracked.position) / gizmoScale;
         }
 
         private void CalculateSharedVariables()
@@ -584,9 +644,9 @@ namespace JanSharp
         private void FacePlaneTowardsHead(int axisIndex)
         {
             Vector3 localPos = new Vector3(
-                headLocal.x < 0f ? -planeSize / 2f : planeSize / 2f,
-                headLocal.y < 0f ? -planeSize / 2f : planeSize / 2f,
-                headLocal.z < 0f ? -planeSize / 2f : planeSize / 2f);
+                headLocal.x < 0f ? -PlaneSize / 2f : PlaneSize / 2f,
+                headLocal.y < 0f ? -PlaneSize / 2f : PlaneSize / 2f,
+                headLocal.z < 0f ? -PlaneSize / 2f : PlaneSize / 2f);
             localPos[axisIndex] = 0f;
             planes[axisIndex].localPosition = localPos;
         }
@@ -673,7 +733,7 @@ namespace JanSharp
         private float GetProximityMultiplier(int axisIndex)
         {
             // TODO: This thing is so whacky, especially when you're looking parallel to an arrow for example.
-            return 1f / ((headDir / headDir[axisIndex]).magnitude * maxAllowedProximity);
+            return 1f / ((headDir / headDir[axisIndex]).magnitude * MaxAllowedProximity);
         }
 
         private void CheckProximity(int axisIndex)
@@ -689,13 +749,13 @@ namespace JanSharp
             float depthProximity = (intersection - headLocal).magnitude / 10_000f;
 
             { // RotatingAxis
-                float proximity = depthProximity + Mathf.Abs(intersection.magnitude - circleRadius) * proximityMultiplier;
+                float proximity = depthProximity + Mathf.Abs(intersection.magnitude - CircleRadius) * proximityMultiplier;
                 if (proximity < highlightedProximity && (showFullCircle[axisIndex] || IsNearHalfCircle(axisIndex, intersection)))
                     SetHighlightedStateToRotatingAxis(proximity, axisIndex, intersection);
             }
 
             { // ScalingWhole
-                float proximity = depthProximity / 1.5f + Mathf.Max(0f, intersection.magnitude - wholeScalerSize / 2f) / maxAllowedProximity;
+                float proximity = depthProximity / 1.5f + Mathf.Max(0f, intersection.magnitude - WholeScalerSize / 2f) / MaxAllowedProximity;
                 if (proximity < highlightedProximity)
                     SetHighlightedStateToScalingWhole(depthProximity, intersection);
             }
@@ -703,7 +763,7 @@ namespace JanSharp
             { // MovingPlane
                 Vector3 shifted = intersection - planes[axisIndex].localPosition;
                 float maxDistance = Mathf.Max(Mathf.Abs(shifted.x), Mathf.Abs(shifted.y), Mathf.Abs(shifted.z));
-                if (depthProximity < highlightedProximity && maxDistance <= planeSize / 2f)
+                if (depthProximity < highlightedProximity && maxDistance <= PlaneSize / 2f)
                     SetHighlightedStateToMovingPlane(depthProximity, axisIndex, intersection);
             }
 
@@ -714,17 +774,17 @@ namespace JanSharp
 
                 { // MovingAxis
                     Vector3 semiProjected = intersection;
-                    semiProjected[i] = Mathf.Max(0f, semiProjected[i] - arrowLength) / proximityMultiplier;
+                    semiProjected[i] = Mathf.Max(0f, semiProjected[i] - ArrowLength) / proximityMultiplier;
                     float proximity = depthProximity + semiProjected.magnitude * proximityMultiplier;
                     if (proximity < highlightedProximity)
                         TrySetHighlightedStateToMovingAxis(depthProximity, i, intersection);
                 }
 
                 { // ScalingAxis
-                    Vector3 shifted = intersection - axisDirs[i] * axisScalerPosition;
+                    Vector3 shifted = intersection - axisDirs[i] * AxisScalerPosition;
                     // axisScalerSize should be used as a radius here, which means it should be divided by 2,
                     // but for more proximity it's also getting multiplied by 2 so the cancel each other out.
-                    float proximity = depthProximity + Mathf.Max(0f, shifted.magnitude - axisScalerSize / 2f) / maxAllowedProximity;
+                    float proximity = depthProximity + Mathf.Max(0f, shifted.magnitude - AxisScalerSize / 2f) / MaxAllowedProximity;
                     if (proximity < highlightedProximity)
                         SetHighlightedStateToScalingAxis(depthProximity, i, intersection);
                 }
@@ -787,7 +847,7 @@ namespace JanSharp
             highlightedProximity = proximity;
             highlightedAxis = axisIndex;
 
-            offsetFromOrigin = Vector3.Project(GetIntersectionOnPlane(freeformReferencePlane), axisDirs[axisIndex]).magnitude - axisScalerPosition;
+            offsetFromOrigin = Vector3.Project(GetIntersectionOnPlane(freeformReferencePlane), axisDirs[axisIndex]).magnitude - AxisScalerPosition;
             startScale = tracked.localScale;
         }
 
