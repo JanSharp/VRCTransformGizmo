@@ -123,15 +123,18 @@ namespace JanSharp
         private Vector3 planeOriginIntersection;
         private Vector3 planeStartPosition;
         private Vector3 planeTotalMovement;
+        private Vector3 lastRaisedPosition;
 
         // RotatingAxis.
         private Quaternion prevRotation;
         private Vector3 localRotationDirection;
         private Quaternion prevOffset;
+        private Quaternion lastRaisedRotation;
 
         // ScalingAxis and ScalingWhole.
         private float offsetFromOrigin;
         private Vector3 startScale;
+        private Vector3 lastRaisedScale;
 
         // ScalingWhole.
         private Vector3 freeformPlaneRight;
@@ -459,8 +462,13 @@ namespace JanSharp
                 planeTotalMovement.z = Mathf.Round(planeTotalMovement.z / 0.25f) * 0.25f;
                 planeTotalMovement = tracked.localRotation * planeTotalMovement;
             }
-            tracked.localPosition = planeStartPosition + planeTotalMovement;
+            Vector3 localPosition = planeStartPosition + planeTotalMovement;
+            tracked.localPosition = localPosition;
 
+            if (localPosition == lastRaisedPosition)
+                return;
+
+            bridge.OnPositionModified();
             CalculateGizmoScale();
         }
 
@@ -500,7 +508,11 @@ namespace JanSharp
             circleLineTwo.localRotation = originRotation * Quaternion.Euler(0f, totalMovement, 0f);
             activeRotationIndicatorMat.SetFloat("_Angle", totalMovement);
 
-            CalculateHeadRelatedVariables();
+            if (prevRotation == lastRaisedRotation)
+            {
+                bridge.OnRotationModified();
+                CalculateHeadRelatedVariables();
+            }
             FinishRotatingAxis(snapping);
         }
 
@@ -524,6 +536,9 @@ namespace JanSharp
             scale[highlightedAxis] *= distance;
             tracked.localScale = scale;
 
+            if (scale != lastRaisedScale)
+                bridge.OnScaleModified();
+
             UpdateScalerLineAndCube(highlightedAxis, distance * AxisScalerPosition);
         }
 
@@ -535,7 +550,11 @@ namespace JanSharp
             float distance = GetScalingDistance(freeformPlaneRight, intersection);
             distance += 1f;
 
-            tracked.localScale = startScale * distance;
+            Vector3 scale = startScale * distance;
+            tracked.localScale = scale;
+
+            if (scale != lastRaisedScale)
+                bridge.OnScaleModified();
 
             for (int i = 0; i < 3; i++)
                 UpdateScalerLineAndCube(i, distance * AxisScalerPosition);
@@ -852,6 +871,7 @@ namespace JanSharp
             planeStartPosition = tracked.localPosition;
             planeTotalMovement = new Vector3();
             originGizmoScale = gizmoScale;
+            lastRaisedPosition = planeStartPosition;
         }
 
         private void SetHighlightedStateToMovingPlane(float proximity, int axisIndex, Vector3 intersection)
@@ -864,6 +884,7 @@ namespace JanSharp
             planeStartPosition = tracked.localPosition;
             planeTotalMovement = new Vector3();
             originGizmoScale = gizmoScale;
+            lastRaisedPosition = planeStartPosition;
         }
 
         private void SetHighlightedStateToRotatingAxis(float proximity, int axisIndex, Vector3 intersection)
@@ -875,6 +896,7 @@ namespace JanSharp
             prevRotation = tracked.rotation;
             localRotationDirection = tangentRotations[axisIndex] * intersection.normalized;
             prevOffset = Quaternion.identity;
+            lastRaisedRotation = tracked.localRotation;
         }
 
         private void SetHighlightedStateToScalingAxis(float proximity, int axisIndex, Vector3 intersection)
@@ -888,6 +910,7 @@ namespace JanSharp
 
             offsetFromOrigin = Vector3.Project(GetIntersectionOnPlane(freeformReferencePlane), axisDirs[axisIndex]).magnitude - AxisScalerPosition;
             startScale = tracked.localScale;
+            lastRaisedScale = startScale;
         }
 
         private void SetHighlightedStateToScalingWhole(float proximity, Vector3 intersection)
@@ -899,6 +922,7 @@ namespace JanSharp
             freeformPlaneRight = headLocalRotation * Vector3.right;
             offsetFromOrigin = Vector3.Project(GetIntersectionOnPlane(freeformReferencePlane), freeformPlaneRight).magnitude;
             startScale = tracked.localScale;
+            lastRaisedScale = startScale;
         }
 
         #endregion

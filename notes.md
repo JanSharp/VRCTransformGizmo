@@ -13,7 +13,7 @@
   - [x] activate (like on mouse down)
   - [x] deactivate (like on mouse up)
   - [x] snapping (like GetKey(control))
-- [ ] events for changes made by the gizmo (maybe also going through the "bridge")
+- [x] events for changes made by the gizmo (maybe also going through the "bridge")
 - [ ] snapping indicators for scaling, using another custom shader
 - [ ] snapping indicators for moving, using shader
 - [ ] abort current action. Like when the object is being moved, right click and it jumps back to where it was before the user started moving it and the state goes back to waiting
