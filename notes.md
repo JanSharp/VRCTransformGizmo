@@ -9,7 +9,7 @@
 - [ ] better snapping handling
 - [x] have some kind of "bridge" for all input data
   - [x] head position and rotation
-  - [ ] raycast origin position and rotation
+  - [x] raycast origin position and rotation
   - [x] activate (like on mouse down)
   - [x] deactivate (like on mouse up)
   - [x] snapping (like GetKey(control))

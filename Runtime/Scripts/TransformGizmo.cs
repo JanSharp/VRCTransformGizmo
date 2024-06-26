@@ -97,12 +97,16 @@ namespace JanSharp
         private Transform tracked;
 
         private TransformGizmoState state;
+        private float gizmoScale;
         private Vector3 headTrackingPosition;
         private Quaternion headTrackingRotation;
-        private float gizmoScale;
         private Vector3 headToTargetDir;
         private Vector3 headDir;
         private Vector3 headLocal;
+        private Vector3 raycastOriginPosition;
+        private Quaternion raycastOriginRotation;
+        private Vector3 raycastDir;
+        private Vector3 raycastLocal;
 
         private TransformGizmoState highlightedState;
         private float highlightedProximity;
@@ -160,6 +164,7 @@ namespace JanSharp
         private void PrepareForStateUpdate()
         {
             bridge.GetHead(out headTrackingPosition, out headTrackingRotation);
+            bridge.GetRaycastOrigin(out raycastOriginPosition, out raycastOriginRotation);
             CalculateSharedVariables();
             for (int i = 0; i < 3; i++)
                 debugIntersects[i].gameObject.SetActive(false);
@@ -626,19 +631,30 @@ namespace JanSharp
 
         private void CalculateHeadRelatedVariables()
         {
+            Quaternion inverseRotation = Quaternion.Inverse(tracked.rotation);
+
             headToTargetDir = (tracked.position - headTrackingPosition).normalized;
             if (headToTargetDir == Vector3.zero)
                 headToTargetDir = Vector3.forward;
-            headToTargetDir = Quaternion.Inverse(tracked.rotation) * headToTargetDir;
+            headToTargetDir = inverseRotation * headToTargetDir;
 
-            headDir = Quaternion.Inverse(tracked.rotation) * headTrackingRotation * Vector3.forward;
-            headLocal = Quaternion.Inverse(tracked.rotation) * (headTrackingPosition - tracked.position) / gizmoScale;
+            headDir = inverseRotation * headTrackingRotation * Vector3.forward;
+            headLocal = inverseRotation * (headTrackingPosition - tracked.position) / gizmoScale;
+        }
+
+        private void CalculateRaycastRelatedVariables() // Partial copy paste of CalculateHeadRelatedVariables.
+        {
+            Quaternion inverseRotation = Quaternion.Inverse(tracked.rotation);
+
+            raycastDir = inverseRotation * raycastOriginRotation * Vector3.forward;
+            raycastLocal = inverseRotation * (raycastOriginPosition - tracked.position) / gizmoScale;
         }
 
         private void CalculateSharedVariables()
         {
             CalculateGizmoScale();
             CalculateHeadRelatedVariables();
+            CalculateRaycastRelatedVariables();
         }
 
         private void FacePlaneTowardsHead(int axisIndex)
@@ -676,28 +692,28 @@ namespace JanSharp
             otherHalfCircles[axisIndex].gameObject.SetActive(isSteep);
         }
 
-        private bool IsLookingTowardsAxisPlane(int axisIndex)
+        private bool IsRayCastingTowardsAxisPlane(int axisIndex)
         {
-            Vector3 headToPlaneDir = new Vector3();
-            // Inverted since headLocal is effectively from plane to head.
-            headToPlaneDir[axisIndex] = -headLocal[axisIndex];
-            return Vector3.Dot(headToPlaneDir, headDir) > 0f;
+            Vector3 raycastOriginToPlaneDir = new Vector3();
+            // Inverted since raycastLocal is effectively from plane to raycast origin.
+            raycastOriginToPlaneDir[axisIndex] = -raycastLocal[axisIndex];
+            return Vector3.Dot(raycastOriginToPlaneDir, raycastDir) > 0f;
         }
 
         private bool TryGetIntersection(int axisIndex, out Vector3 intersection)
         {
-            if (!IsLookingTowardsAxisPlane(axisIndex))
+            if (!IsRayCastingTowardsAxisPlane(axisIndex))
             {
                 intersection = new Vector3();
                 return false;
             }
             intersection = GetIntersection(axisIndex);
-            return (intersection - headLocal).magnitude * gizmoScale <= maxIntersectionDistance;
+            return Vector3.Distance(intersection, headLocal) * gizmoScale <= maxIntersectionDistance;
         }
 
         private Vector3 GetIntersection(int axisIndex)
         {
-            Vector3 intersection = headLocal + (headDir * -(headLocal[axisIndex] / headDir[axisIndex]));
+            Vector3 intersection = raycastLocal + (raycastDir * -(raycastLocal[axisIndex] / raycastDir[axisIndex]));
             intersection[axisIndex] = 0f;
             debugIntersects[axisIndex].gameObject.SetActive(true);
             debugIntersects[axisIndex].localPosition = intersection;
@@ -706,7 +722,7 @@ namespace JanSharp
 
         private bool TryGetIntersectionOnPlane(Vector3 planeNormal, out Vector3 intersection)
         {
-            if (Vector3.Dot(headDir, Vector3.Project(headLocal, planeNormal)) >= 0f)
+            if (Vector3.Dot(raycastDir, Vector3.Project(raycastLocal, planeNormal)) >= 0f)
             {
                 intersection = new Vector3();
                 return false;
@@ -717,8 +733,8 @@ namespace JanSharp
 
         private Vector3 GetIntersectionOnPlane(Vector3 planeNormal)
         {
-            float distanceFromHeadToPlane = Vector3.Distance(Vector3.ProjectOnPlane(headLocal, planeNormal), headLocal);
-            return headLocal + (headDir * Mathf.Abs(distanceFromHeadToPlane / Vector3.Dot(headDir, planeNormal)));
+            float distanceFromHeadToPlane = Vector3.Distance(Vector3.ProjectOnPlane(raycastLocal, planeNormal), raycastLocal);
+            return raycastLocal + (raycastDir * Mathf.Abs(distanceFromHeadToPlane / Vector3.Dot(raycastDir, planeNormal)));
         }
 
         private bool IsNearHalfCircle(int axisIndex, Vector3 intersection)
@@ -733,7 +749,7 @@ namespace JanSharp
         private float GetProximityMultiplier(int axisIndex)
         {
             // TODO: This thing is so whacky, especially when you're looking parallel to an arrow for example.
-            return 1f / ((headDir / headDir[axisIndex]).magnitude * MaxAllowedProximity);
+            return 1f / ((raycastDir / raycastDir[axisIndex]).magnitude * MaxAllowedProximity);
         }
 
         private void CheckProximity(int axisIndex)
@@ -746,7 +762,7 @@ namespace JanSharp
                 return;
 
             float proximityMultiplier = GetProximityMultiplier(axisIndex);
-            float depthProximity = (intersection - headLocal).magnitude / 10_000f;
+            float depthProximity = (intersection - raycastLocal).magnitude / 10_000f;
 
             { // RotatingAxis
                 float proximity = depthProximity + Mathf.Abs(intersection.magnitude - CircleRadius) * proximityMultiplier;
