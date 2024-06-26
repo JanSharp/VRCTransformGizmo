@@ -202,12 +202,10 @@ namespace JanSharp
         {
             if (this.tracked == tracked && this.bridge == bridge)
                 return;
-            if ((tracked == null) != (bridge == null))
+            if (tracked != null && bridge == null)
             {
                 Debug.LogError($"[TransformGizmo] Attempt to SetTracked where "
-                    + $"tracked is{(tracked == null ? "" : "not ")} null and "
-                    + $"bridge is{(bridge == null ? "" : "not ")} null. They must either both be null or "
-                    + $"both be not null. Ignoring.");
+                    + $"tracked is not null and bridge is null. Ignoring.");
                 return;
             }
 
