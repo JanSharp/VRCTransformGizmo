@@ -100,6 +100,7 @@ namespace JanSharp
         private Vector3 headTrackingPosition;
         private Quaternion headTrackingRotation;
         private Vector3 headToTargetDir;
+        private Quaternion headLocalRotation;
         private Vector3 headDir;
         private Vector3 headLocal;
         private Vector3 raycastOriginPosition;
@@ -661,7 +662,8 @@ namespace JanSharp
                 headToTargetDir = Vector3.forward;
             headToTargetDir = inverseRotation * headToTargetDir;
 
-            headDir = inverseRotation * headTrackingRotation * Vector3.forward;
+            headLocalRotation = inverseRotation * headTrackingRotation;
+            headDir = headLocalRotation * Vector3.forward;
             headLocal = inverseRotation * (headTrackingPosition - tracked.position) / gizmoScale;
         }
 
@@ -896,7 +898,7 @@ namespace JanSharp
             highlightedProximity = proximity;
 
             freeformReferencePlane = headDir;
-            freeformPlaneRight = new Vector3(headDir.z, headDir.y, -headDir.x);
+            freeformPlaneRight = headLocalRotation * Vector3.right;
             offsetFromOrigin = Vector3.Project(GetIntersectionOnPlane(freeformReferencePlane), freeformPlaneRight).magnitude;
             startScale = tracked.localScale;
         }
