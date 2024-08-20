@@ -19,3 +19,4 @@
 - [ ] abort current action. Like when the object is being moved, right click and it jumps back to where it was before the user started moving it and the state goes back to waiting
 - [ ] integration into some kind of undo system
 - [ ] the ability to limit what kind of transformations are allowed
+- [ ] it's using head instead of hand in VR for some reason?
