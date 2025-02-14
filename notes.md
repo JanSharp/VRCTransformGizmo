@@ -21,4 +21,4 @@
 - [ ] integration into some kind of undo system
 - [ ] the ability to limit what kind of transformations are allowed
 - [ ] it's using head instead of hand in VR for some reason?
-- [ ] all of the changed events which are supposed to only get raised when the value difference since the last time it got raised just keep getting raised every frame
+- [x] all of the changed events which are supposed to only get raised when the value difference since the last time it got raised just keep getting raised every frame

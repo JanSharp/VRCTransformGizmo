@@ -129,7 +129,7 @@ namespace JanSharp
         private Quaternion prevRotation;
         private Vector3 localRotationDirection;
         private Quaternion prevOffset;
-        private Quaternion lastRaisedRotation;
+        private float lastRaisedRotationAtLossyMovement;
 
         // ScalingAxis and ScalingWhole.
         private float offsetFromOrigin;
@@ -463,16 +463,17 @@ namespace JanSharp
                 planeTotalMovement = tracked.localRotation * planeTotalMovement;
             }
             Vector3 localPosition = planeStartPosition + planeTotalMovement;
-            tracked.localPosition = localPosition;
 
             if (localPosition == lastRaisedPosition)
                 return;
 
+            tracked.localPosition = localPosition;
             bridge.OnPositionModified();
+            lastRaisedPosition = localPosition;
             CalculateGizmoScale();
         }
 
-        private void RotatingAxis()
+        private void RotatingAxis(bool updateVisualizationOnly = false)
         {
             bool snapping = bridge.SnappingThisFrame();
             activeSnapCircle.gameObject.SetActive(snapping);
@@ -491,6 +492,14 @@ namespace JanSharp
             if (snapping)
                 totalMovement = Mathf.Round(totalMovement / 15f) * 15f;
             totalMovement *= (Vector3.Dot(projected, localRotationDirection) < 0f ? -1f : 1f);
+            float lossyMovement = totalMovement * 7200f;
+
+            // Dead zone of 0.1 degrees.
+            if (Mathf.Abs(lossyMovement - lastRaisedRotationAtLossyMovement) <= 1f && !updateVisualizationOnly)
+            {
+                FinishRotatingAxis(snapping);
+                return;
+            }
 
             Vector3 euler = Vector3.zero;
             euler[highlightedAxis] = totalMovement;
@@ -501,18 +510,19 @@ namespace JanSharp
             prevRotation *= rotationToApply;
             localRotationDirection = Quaternion.Inverse(rotationToApply) * localRotationDirection;
 
-            tracked.rotation = prevRotation;
             Quaternion originRotation = GetOriginRotation();
             activeRotationIndicator.localRotation = originRotation;
             circleLineOne.localRotation = originRotation;
             circleLineTwo.localRotation = originRotation * Quaternion.Euler(0f, totalMovement, 0f);
             activeRotationIndicatorMat.SetFloat("_Angle", totalMovement);
 
-            if (prevRotation != lastRaisedRotation)
+            if (!updateVisualizationOnly)
             {
+                tracked.rotation = prevRotation;
                 bridge.OnRotationModified();
-                CalculateHeadRelatedVariables();
             }
+            lastRaisedRotationAtLossyMovement = lossyMovement;
+            CalculateHeadRelatedVariables();
             FinishRotatingAxis(snapping);
         }
 
@@ -534,10 +544,13 @@ namespace JanSharp
 
             Vector3 scale = startScale;
             scale[highlightedAxis] *= distance;
-            tracked.localScale = scale;
 
             if (scale != lastRaisedScale)
+            {
+                tracked.localScale = scale;
                 bridge.OnScaleModified();
+                lastRaisedScale = scale;
+            }
 
             UpdateScalerLineAndCube(highlightedAxis, distance * AxisScalerPosition);
         }
@@ -551,10 +564,13 @@ namespace JanSharp
             distance += 1f;
 
             Vector3 scale = startScale * distance;
-            tracked.localScale = scale;
 
             if (scale != lastRaisedScale)
+            {
+                tracked.localScale = scale;
                 bridge.OnScaleModified();
+                lastRaisedScale = scale;
+            }
 
             for (int i = 0; i < 3; i++)
                 UpdateScalerLineAndCube(i, distance * AxisScalerPosition);
@@ -896,7 +912,8 @@ namespace JanSharp
             prevRotation = tracked.rotation;
             localRotationDirection = tangentRotations[axisIndex] * intersection.normalized;
             prevOffset = Quaternion.identity;
-            lastRaisedRotation = tracked.localRotation;
+            lastRaisedRotationAtLossyMovement = 0f;
+            RotatingAxis(updateVisualizationOnly: true);
         }
 
         private void SetHighlightedStateToScalingAxis(float proximity, int axisIndex, Vector3 intersection)
