@@ -508,7 +508,7 @@ namespace JanSharp
             circleLineTwo.localRotation = originRotation * Quaternion.Euler(0f, totalMovement, 0f);
             activeRotationIndicatorMat.SetFloat("_Angle", totalMovement);
 
-            if (prevRotation == lastRaisedRotation)
+            if (prevRotation != lastRaisedRotation)
             {
                 bridge.OnRotationModified();
                 CalculateHeadRelatedVariables();
