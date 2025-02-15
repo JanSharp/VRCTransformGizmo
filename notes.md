@@ -23,3 +23,4 @@
 - [ ] it's using head instead of hand in VR for some reason?
 - [x] all of the changed events which are supposed to only get raised when the value difference since the last time it got raised just keep getting raised every frame
 - [ ] why is rotating using world rotation while moving and scaling are using local?
+- [ ] change raycast to match what the custom interacts and pickups system is doing, which is angling it downwards 45 degrees. This matches VRChat's interact and UI raycast rotation
