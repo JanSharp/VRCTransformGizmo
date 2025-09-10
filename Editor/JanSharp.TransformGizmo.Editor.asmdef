@@ -1,5 +1,6 @@
 {
-    "name": "Jansharp.TransformGizmo.Editor",
+    "name": "JanSharp.TransformGizmo.Editor",
+    "rootNamespace": "",
     "references": [
         "JanSharp.TransformGizmo",
         "JanSharp.Common",
