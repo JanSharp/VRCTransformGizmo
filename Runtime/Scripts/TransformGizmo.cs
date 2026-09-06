@@ -21,10 +21,22 @@ namespace JanSharp
         [PublicAPI]
         [Tooltip("Should be less than or equal to the far clipping plane.")]
         public float maxIntersectionDistance = 800f;
+        public float visualRaycastDistance = 200f;
         private const float InverseScale = 200f;
         private const float MaxAllowedProximity = 5f;
         [Space]
         [Header("Internal")]
+        [SerializeField] private Transform gizmoRoot;
+        #region Raycast Vars
+        [SerializeField] private Transform raycast;
+        [SerializeField] private Renderer raycastRenderer;
+        private Material raycastMaterial; // Set in Start.
+        private int point1MaterialPropId; // Set in Start.
+        private int point2MaterialPropId; // Set in Start.
+        private int point3MaterialPropId; // Set in Start.
+        private int[] pointMaterialPropIds; // Set in Start.
+        #endregion
+        [Space]
         #region MovingAxis Vars
         [SerializeField] private Transform[] arrows;
         [SerializeField] private Transform[] highlightedArrows;
@@ -50,7 +62,8 @@ namespace JanSharp
         [SerializeField] private Transform circleLineOne;
         [SerializeField] private Transform circleLineTwo;
         [SerializeField] private MeshRenderer activeRotationIndicatorRenderer;
-        private Material activeRotationIndicatorMat; // Set in Start.
+        private Material activeRotationIndicatorMaterial; // Set in Start.
+        private int angleMaterialPropId; // Set in Start.
         private const float CircleRadius = 44f;
         #endregion
         [Space]
@@ -159,6 +172,7 @@ namespace JanSharp
                 return;
 
             PrepareForStateUpdate();
+            PrepareVisualRaycast();
 
             if (state != TransformGizmoState.Waiting && bridge.DeactivateThisFrame())
                 EnterState(TransformGizmoState.Waiting); // Also calls UpdateCurrentState().
@@ -173,7 +187,21 @@ namespace JanSharp
         private void Init()
         {
             localPlayer = Networking.LocalPlayer;
-            activeRotationIndicatorMat = activeRotationIndicatorRenderer.material;
+
+            raycastMaterial = raycastRenderer.material;
+            activeRotationIndicatorMaterial = activeRotationIndicatorRenderer.material;
+
+            point1MaterialPropId = VRCShader.PropertyToID("_Point1");
+            point2MaterialPropId = VRCShader.PropertyToID("_Point2");
+            point3MaterialPropId = VRCShader.PropertyToID("_Point3");
+            pointMaterialPropIds = new int[]
+            {
+                point1MaterialPropId,
+                point2MaterialPropId,
+                point3MaterialPropId,
+            };
+
+            angleMaterialPropId = VRCShader.PropertyToID("_Angle");
         }
 
         private void PrepareForStateUpdate()
@@ -191,8 +219,9 @@ namespace JanSharp
         /// </summary>
         private void UpdateGizmoTransform()
         {
-            this.transform.localScale = Vector3.one * gizmoScale;
-            this.transform.SetPositionAndRotation(tracked.position, tracked.rotation);
+            gizmoRoot.localScale = Vector3.one * gizmoScale;
+            gizmoRoot.SetPositionAndRotation(tracked.position, tracked.rotation);
+            UpdateVisualRaycastTransform();
         }
 
         #region API
@@ -225,12 +254,15 @@ namespace JanSharp
             {
                 DisableAllHighlights();
                 DisableEverything();
+                DisableVisualRaycast();
                 return;
             }
 
             if (localPlayer == null)
                 Init();
+            EnableVisualRaycast();
             PrepareForStateUpdate();
+            PrepareVisualRaycast();
             EnterState(TransformGizmoState.Waiting);
             UpdateGizmoTransform();
         }
@@ -268,6 +300,33 @@ namespace JanSharp
             PrepareForStateUpdate();
             EnterState(TransformGizmoState.Waiting);
             UpdateGizmoTransform();
+        }
+
+        #endregion
+
+        #region Visual Raycast
+
+        private void EnableVisualRaycast()
+        {
+            raycast.gameObject.SetActive(true);
+        }
+
+        private void PrepareVisualRaycast()
+        {
+            raycastMaterial.SetVector(point1MaterialPropId, Vector4.zero);
+            raycastMaterial.SetVector(point2MaterialPropId, Vector4.zero);
+            raycastMaterial.SetVector(point3MaterialPropId, Vector4.zero);
+        }
+
+        private void UpdateVisualRaycastTransform()
+        {
+            raycast.SetPositionAndRotation(raycastOriginPosition, raycastOriginRotation);
+            raycast.localScale = new Vector3(1f, 1f, visualRaycastDistance);
+        }
+
+        private void DisableVisualRaycast()
+        {
+            raycast.gameObject.SetActive(false);
         }
 
         #endregion
@@ -522,7 +581,7 @@ namespace JanSharp
             activeRotationIndicator.localRotation = originRotation;
             circleLineOne.localRotation = originRotation;
             circleLineTwo.localRotation = originRotation * Quaternion.Euler(0f, totalMovement, 0f);
-            activeRotationIndicatorMat.SetFloat("_Angle", totalMovement);
+            activeRotationIndicatorMaterial.SetFloat(angleMaterialPropId, totalMovement);
 
             if (!updateHighlightOnly)
             {
@@ -783,6 +842,9 @@ namespace JanSharp
             intersection[axisIndex] = 0f;
             debugIntersects[axisIndex].gameObject.SetActive(true);
             debugIntersects[axisIndex].localPosition = intersection;
+            Vector4 point = gizmoRoot.TransformPoint(intersection);
+            point.w = 1f;
+            raycastMaterial.SetVector(pointMaterialPropIds[axisIndex], point);
             return intersection;
         }
 

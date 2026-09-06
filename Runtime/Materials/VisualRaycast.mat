@@ -7,8 +7,8 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Active
-  m_Shader: {fileID: 4800000, guid: e76c038f7f8be641e81a2bb6352725ee, type: 3}
+  m_Name: VisualRaycast
+  m_Shader: {fileID: 4800000, guid: 84814f104e1e1523aa6fe815ef32c9aa, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -16,7 +16,7 @@ Material:
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
-  m_CustomRenderQueue: 4005
+  m_CustomRenderQueue: 4004
   stringTagMap: {}
   disabledShaderPasses: []
   m_LockedProperties: 
@@ -72,12 +72,16 @@ Material:
     - _Mode: 0
     - _OcclusionStrength: 1
     - _Parallax: 0.02
+    - _PointRange: 1
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
     - _SrcBlend: 1
     - _UVSec: 0
     - _ZWrite: 1
     m_Colors:
-    - _Color: {r: 1, g: 1, b: 0.504, a: 1}
+    - _Color: {r: 1, g: 1, b: 0.2549999, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
+    - _Point1: {r: 0, g: 0, b: 0, a: 0}
+    - _Point2: {r: 0, g: 0, b: 0, a: 0}
+    - _Point3: {r: 0, g: 0, b: 0, a: 0}
   m_BuildTextureStacks: []
