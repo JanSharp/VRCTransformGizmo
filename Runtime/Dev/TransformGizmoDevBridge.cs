@@ -10,6 +10,7 @@ namespace JanSharp
     {
         public TransformGizmo transformGizmo;
         public Transform tracked;
+        private float inputLookVertical;
 
         private VRCPlayerApi localPlayer;
         private bool isInVR;
@@ -54,6 +55,11 @@ namespace JanSharp
                 transformGizmo.Deactivate();
         }
 
+        public override void InputLookVertical(float value, UdonInputEventArgs args)
+        {
+            inputLookVertical = value;
+        }
+
         public override bool ActivateThisFrame()
         {
             return Input.GetMouseButtonDown(0);
@@ -66,7 +72,9 @@ namespace JanSharp
 
         public override bool SnappingThisFrame()
         {
-            return Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+            return isInVR
+                ? inputLookVertical > 0.4f
+                : (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl));
         }
 
         public override bool ShowVisualRaycastThisFrame()
