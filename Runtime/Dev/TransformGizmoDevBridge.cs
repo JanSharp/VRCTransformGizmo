@@ -33,7 +33,7 @@ namespace JanSharp
             {
                 VRCPlayerApi.TrackingData hand = localPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.RightHand);
                 position = hand.position;
-                rotation = hand.rotation;
+                rotation = hand.rotation * transformGizmo.handDirectionOffsetForVR;
             }
             else
             {

@@ -1,8 +1,7 @@
-﻿using UdonSharp;
+﻿using JetBrains.Annotations;
+using UdonSharp;
 using UnityEngine;
 using VRC.SDKBase;
-using VRC.Udon;
-using JetBrains.Annotations;
 
 namespace JanSharp
 {
@@ -75,6 +74,14 @@ namespace JanSharp
         [SerializeField] private Transform[] debugIntersects;
         [SerializeField] private Transform debugIndicatorOne;
         [SerializeField] private Transform debugIndicatorTwo;
+
+        /// <summary>
+        /// <para>Use this inside of
+        /// <see cref="TransformGizmoBridge.GetRaycastOrigin(out Vector3, out Quaternion)"/>, applied in VR
+        /// after the hand tracking data rotation. It tilts it downwards to match the direction other raycasts
+        /// made by VRChat such as for UIs. What users are used to, effectively.</para>
+        /// </summary>
+        [System.NonSerialized] public Quaternion handDirectionOffsetForVR = Quaternion.AngleAxis(90f, Vector3.forward) * Quaternion.AngleAxis(45f, Vector3.right);
 
         private Quaternion[] tangentRotations = new Quaternion[]
         {
