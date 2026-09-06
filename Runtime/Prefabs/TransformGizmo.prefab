@@ -19836,10 +19836,9 @@ MonoBehaviour:
     SerializationNodes: []
   _udonSharpBackingUdonBehaviour: {fileID: 5665257272322447868}
   maxIntersectionDistance: 800
-  visualRaycastDistance: 200
+  visualRaycastDistance: 100
   gizmoRoot: {fileID: 8213581294574492178}
-  raycast: {fileID: 5956546194814236683}
-  raycastRenderer: {fileID: 3174939805372763570}
+  visualRaycast: {fileID: 5956546194814236683}
   arrows:
   - {fileID: 5665257272979241113}
   - {fileID: 5665257273043395841}

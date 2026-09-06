@@ -5,8 +5,8 @@
 - [ ] local vs global
 - [ ] multi object transforming
 - [x] different "raycast" origin in VR - can be done with the bridge now
-- [ ] show little intersection dots in VR
-- [ ] show raycast line in VR
+- [x] ~~show little intersection dots in VR~~
+- [x] show raycast line in VR
 - [x] better snapping handling - handled through the bridge
 - [x] have some kind of "bridge" for all input data
   - [x] head position and rotation
@@ -26,3 +26,4 @@
 - [x] change raycast to match what the custom interacts and pickups system is doing, which is angling it downwards 45 degrees. This matches VRChat's interact and UI raycast rotation
 - [x] holding control while rotating, then letting go of left mouse but still holding control keeps the snapping indicators active
 - [ ] make optimized 3d models
+- [ ] show raycast in VR only
