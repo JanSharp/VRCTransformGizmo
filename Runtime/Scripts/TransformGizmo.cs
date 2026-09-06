@@ -480,10 +480,11 @@ namespace JanSharp
             CalculateGizmoScale();
         }
 
-        private void RotatingAxis(bool updateVisualizationOnly = false)
+        private void RotatingAxis(bool updateHighlightOnly = false)
         {
             bool snapping = bridge.SnappingThisFrame();
-            activeSnapCircle.gameObject.SetActive(snapping);
+            if (!updateHighlightOnly) // Otherwise this shows as active while not editing.
+                activeSnapCircle.gameObject.SetActive(snapping);
 
             if (!TryGetIntersection(highlightedAxis, out Vector3 intersection))
             {
@@ -502,7 +503,7 @@ namespace JanSharp
             float lossyMovement = totalMovement * 7200f;
 
             // Dead zone of 0.1 degrees.
-            if (Mathf.Abs(lossyMovement - lastRaisedRotationAtLossyMovement) <= 1f && !updateVisualizationOnly)
+            if (Mathf.Abs(lossyMovement - lastRaisedRotationAtLossyMovement) <= 1f && !updateHighlightOnly)
             {
                 FinishRotatingAxis(snapping);
                 return;
@@ -523,7 +524,7 @@ namespace JanSharp
             circleLineTwo.localRotation = originRotation * Quaternion.Euler(0f, totalMovement, 0f);
             activeRotationIndicatorMat.SetFloat("_Angle", totalMovement);
 
-            if (!updateVisualizationOnly)
+            if (!updateHighlightOnly)
             {
                 tracked.rotation = prevRotation;
                 bridge.OnRotationModified();
@@ -920,7 +921,7 @@ namespace JanSharp
             localRotationDirection = tangentRotations[axisIndex] * intersection.normalized;
             prevOffset = Quaternion.identity;
             lastRaisedRotationAtLossyMovement = 0f;
-            RotatingAxis(updateVisualizationOnly: true);
+            RotatingAxis(updateHighlightOnly: true);
         }
 
         private void SetHighlightedStateToScalingAxis(float proximity, int axisIndex, Vector3 intersection)
