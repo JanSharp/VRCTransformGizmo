@@ -1,6 +1,7 @@
 ﻿using UdonSharp;
 using UnityEngine;
 using VRC.SDKBase;
+using VRC.Udon.Common;
 
 namespace JanSharp
 {
@@ -41,6 +42,16 @@ namespace JanSharp
                 position = head.position;
                 rotation = head.rotation;
             }
+        }
+
+        public override void InputUse(bool value, UdonInputEventArgs args)
+        {
+            if (!isInVR || args.handType != HandType.RIGHT)
+                return;
+            if (value)
+                transformGizmo.Activate();
+            else
+                transformGizmo.Deactivate();
         }
 
         public override bool ActivateThisFrame()
