@@ -240,7 +240,6 @@ namespace JanSharp
 
             if (localPlayer == null)
                 Init();
-            EnableVisualRaycast();
             PrepareForStateUpdate();
             EnterState(TransformGizmoState.Waiting);
             UpdateGizmoTransform();
@@ -285,13 +284,14 @@ namespace JanSharp
 
         #region Visual Raycast
 
-        private void EnableVisualRaycast()
-        {
-            visualRaycast.gameObject.SetActive(true);
-        }
-
         private void UpdateVisualRaycastTransform()
         {
+            if (!bridge.ShowVisualRaycastThisFrame())
+            {
+                visualRaycast.gameObject.SetActive(false);
+                return;
+            }
+            visualRaycast.gameObject.SetActive(true);
             visualRaycast.SetPositionAndRotation(raycastOriginPosition, raycastOriginRotation);
             visualRaycast.localScale = new Vector3(1f, 1f, visualRaycastDistance);
         }

@@ -69,6 +69,11 @@ namespace JanSharp
             return Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
         }
 
+        public override bool ShowVisualRaycastThisFrame()
+        {
+            return isInVR;
+        }
+
         public override void OnPositionModified()
         {
         }

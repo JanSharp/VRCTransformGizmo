@@ -11,6 +11,7 @@ namespace JanSharp
         public abstract bool ActivateThisFrame();
         public abstract bool DeactivateThisFrame();
         public abstract bool SnappingThisFrame();
+        public abstract bool ShowVisualRaycastThisFrame();
 
         public abstract void OnPositionModified();
         public abstract void OnRotationModified();
