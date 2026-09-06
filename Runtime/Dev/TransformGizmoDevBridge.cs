@@ -1,7 +1,6 @@
 ﻿using UdonSharp;
 using UnityEngine;
 using VRC.SDKBase;
-using VRC.Udon;
 
 namespace JanSharp
 {
@@ -12,10 +11,12 @@ namespace JanSharp
         public Transform tracked;
 
         private VRCPlayerApi localPlayer;
+        private bool isInVR;
 
         private void Start()
         {
             localPlayer = Networking.LocalPlayer;
+            isInVR = localPlayer.IsUserInVR();
             transformGizmo.SetTracked(tracked, this);
         }
 
@@ -28,9 +29,18 @@ namespace JanSharp
 
         public override void GetRaycastOrigin(out Vector3 position, out Quaternion rotation)
         {
-            VRCPlayerApi.TrackingData head = localPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
-            position = head.position;
-            rotation = head.rotation;
+            if (isInVR)
+            {
+                VRCPlayerApi.TrackingData hand = localPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.RightHand);
+                position = hand.position;
+                rotation = hand.rotation;
+            }
+            else
+            {
+                VRCPlayerApi.TrackingData head = localPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
+                position = head.position;
+                rotation = head.rotation;
+            }
         }
 
         public override bool ActivateThisFrame()
