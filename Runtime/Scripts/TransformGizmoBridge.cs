@@ -1,7 +1,5 @@
 ﻿using UdonSharp;
 using UnityEngine;
-using VRC.SDKBase;
-using VRC.Udon;
 
 namespace JanSharp
 {
@@ -9,7 +7,7 @@ namespace JanSharp
     public abstract class TransformGizmoBridge : UdonSharpBehaviour
     {
         public abstract void GetHead(out Vector3 position, out Quaternion rotation);
-        public abstract void GetRaycastOrigin(out Vector3 position, out Quaternion rotation); // TODO: use
+        public abstract void GetRaycastOrigin(out Vector3 position, out Quaternion rotation);
         public abstract bool ActivateThisFrame();
         public abstract bool DeactivateThisFrame();
         public abstract bool SnappingThisFrame();
