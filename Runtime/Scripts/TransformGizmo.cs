@@ -140,7 +140,8 @@ namespace JanSharp
         private Vector3 lastRaisedPosition;
 
         // RotatingAxis.
-        private Quaternion prevRotation;
+        private Quaternion startRotation;
+        private Quaternion prevWorldRotation;
         private Vector3 localRotationDirection;
         private Quaternion prevOffset;
         private float lastRaisedRotationAtLossyMovement;
@@ -169,6 +170,11 @@ namespace JanSharp
 
             if (state != TransformGizmoState.Waiting && bridge.DeactivateThisFrame())
                 EnterState(TransformGizmoState.Waiting); // Also calls UpdateCurrentState().
+            else if (state != TransformGizmoState.Waiting && bridge.DeactivateAndRevertThisFrame())
+            {
+                RevertToRecordedTransform();
+                EnterState(TransformGizmoState.Waiting); // Also calls UpdateCurrentState().
+            }
             else
                 UpdateCurrentState();
 
@@ -270,11 +276,15 @@ namespace JanSharp
         /// <summary>
         /// <para>Call this for example when a button is released (up).</para>
         /// </summary>
+        /// <param name="revertChanges">Pass <see langword="true"/> for example when escape or right click is
+        /// pressed.</param>
         [PublicAPI]
-        public void Deactivate()
+        public void Deactivate(bool revertChanges = false)
         {
             if (tracked == null || state == TransformGizmoState.Waiting)
                 return;
+            if (revertChanges)
+                RevertToRecordedTransform();
             PrepareForStateUpdate();
             EnterState(TransformGizmoState.Waiting);
             UpdateGizmoTransform();
@@ -414,6 +424,73 @@ namespace JanSharp
 
         #endregion
 
+        #region Canceling/Reverting
+
+        private void RevertToRecordedTransform()
+        {
+            switch (state)
+            {
+                case TransformGizmoState.Waiting:
+                    // Do Nothing.
+                    break;
+                case TransformGizmoState.MovingAxis:
+                    RevertFromMovingAxis();
+                    break;
+                case TransformGizmoState.MovingPlane:
+                    RevertFromMovingPlane();
+                    break;
+                case TransformGizmoState.RotatingAxis:
+                    RevertFromRotatingAxis();
+                    break;
+                case TransformGizmoState.ScalingAxis:
+                    RevertFromScalingAxis();
+                    break;
+                case TransformGizmoState.ScalingWhole:
+                    RevertFromScalingWhole();
+                    break;
+            }
+        }
+
+        private void RevertFromMovingAxis()
+        {
+            // // This is wrong, because movement is actually local to the tracked transform
+            // // while the start position is local to the parent of the tracked transform.
+            // Vector3 localPosition = tracked.localPosition;
+            // localPosition[highlightedAxis] = planeStartPosition[highlightedAxis];
+            // SetLocalPositionAndRaise(localPosition);
+            SetLocalPositionAndRaise(planeStartPosition);
+        }
+
+        private void RevertFromMovingPlane()
+        {
+            // // This is wrong, because movement is actually local to the tracked transform
+            // // while the start position is local to the parent of the tracked transform.
+            // Vector3 localPosition = planeStartPosition;
+            // localPosition[highlightedAxis] = tracked.localPosition[highlightedAxis];
+            // SetLocalPositionAndRaise(localPosition);
+            SetLocalPositionAndRaise(planeStartPosition);
+        }
+
+        private void RevertFromRotatingAxis()
+        {
+            tracked.localRotation = startRotation;
+            bridge.OnRotationModified();
+        }
+
+        private void RevertFromScalingAxis()
+        {
+            Vector3 localScale = tracked.localScale;
+            localScale[highlightedAxis] = startScale[highlightedAxis];
+            SetLocalScaleAndRaise(localScale);
+        }
+
+        private void RevertFromScalingWhole()
+        {
+            SetLocalScaleAndRaise(startScale);
+        }
+
+        #endregion
+
         #region State Update
 
         private void UpdateCurrentState()
@@ -500,11 +577,13 @@ namespace JanSharp
                 planeTotalMovement.z = Mathf.Round(planeTotalMovement.z / 0.25f) * 0.25f;
                 planeTotalMovement = tracked.localRotation * planeTotalMovement;
             }
-            Vector3 localPosition = planeStartPosition + planeTotalMovement;
+            SetLocalPositionAndRaise(planeStartPosition + planeTotalMovement);
+        }
 
+        private void SetLocalPositionAndRaise(Vector3 localPosition)
+        {
             if (localPosition == lastRaisedPosition)
                 return;
-
             tracked.localPosition = localPosition;
             bridge.OnPositionModified();
             lastRaisedPosition = localPosition;
@@ -546,7 +625,7 @@ namespace JanSharp
             Quaternion rotationToApply = Quaternion.Inverse(prevOffset) * offset;
 
             prevOffset = offset;
-            prevRotation *= rotationToApply;
+            prevWorldRotation *= rotationToApply;
             localRotationDirection = Quaternion.Inverse(rotationToApply) * localRotationDirection;
 
             Quaternion originRotation = GetOriginRotation();
@@ -557,7 +636,7 @@ namespace JanSharp
 
             if (!updateHighlightOnly)
             {
-                tracked.rotation = prevRotation;
+                tracked.rotation = prevWorldRotation;
                 bridge.OnRotationModified();
             }
             lastRaisedRotationAtLossyMovement = lossyMovement;
@@ -583,13 +662,7 @@ namespace JanSharp
 
             Vector3 scale = startScale;
             scale[highlightedAxis] *= distance;
-
-            if (scale != lastRaisedScale)
-            {
-                tracked.localScale = scale;
-                bridge.OnScaleModified();
-                lastRaisedScale = scale;
-            }
+            SetLocalScaleAndRaise(scale);
 
             UpdateScalerLineAndCube(highlightedAxis, distance * AxisScalerPosition);
         }
@@ -602,17 +675,19 @@ namespace JanSharp
             float distance = GetScalingDistance(freeformPlaneRight, intersection);
             distance += 1f;
 
-            Vector3 scale = startScale * distance;
-
-            if (scale != lastRaisedScale)
-            {
-                tracked.localScale = scale;
-                bridge.OnScaleModified();
-                lastRaisedScale = scale;
-            }
+            SetLocalScaleAndRaise(startScale * distance);
 
             for (int i = 0; i < 3; i++)
                 UpdateScalerLineAndCube(i, distance * AxisScalerPosition);
+        }
+
+        private void SetLocalScaleAndRaise(Vector3 localScale)
+        {
+            if (localScale == lastRaisedScale)
+                return;
+            tracked.localScale = localScale;
+            bridge.OnScaleModified();
+            lastRaisedScale = localScale;
         }
 
         private float GetScalingDistance(Vector3 rightDir, Vector3 intersection)
@@ -948,7 +1023,8 @@ namespace JanSharp
             highlightedProximity = proximity;
             highlightedAxis = axisIndex;
 
-            prevRotation = tracked.rotation;
+            startRotation = tracked.localRotation;
+            prevWorldRotation = tracked.rotation;
             localRotationDirection = tangentRotations[axisIndex] * intersection.normalized;
             prevOffset = Quaternion.identity;
             lastRaisedRotationAtLossyMovement = 0f;

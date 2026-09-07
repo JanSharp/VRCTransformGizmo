@@ -10,6 +10,7 @@ namespace JanSharp
         public abstract void GetRaycastOrigin(out Vector3 position, out Quaternion rotation);
         public abstract bool ActivateThisFrame();
         public abstract bool DeactivateThisFrame();
+        public abstract bool DeactivateAndRevertThisFrame();
         public abstract bool SnappingThisFrame();
         public abstract bool ShowVisualRaycastThisFrame();
 

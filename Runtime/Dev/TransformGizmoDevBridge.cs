@@ -70,6 +70,13 @@ namespace JanSharp
             return !isInVR && Input.GetMouseButtonUp(0);
         }
 
+        public override bool DeactivateAndRevertThisFrame()
+        {
+            return isInVR
+                ? inputLookVertical < -0.4f
+                : (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape));
+        }
+
         public override bool SnappingThisFrame()
         {
             return isInVR
