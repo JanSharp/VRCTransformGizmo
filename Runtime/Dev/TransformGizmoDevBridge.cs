@@ -62,12 +62,12 @@ namespace JanSharp
 
         public override bool ActivateThisFrame()
         {
-            return Input.GetMouseButtonDown(0);
+            return !isInVR && Input.GetMouseButtonDown(0);
         }
 
         public override bool DeactivateThisFrame()
         {
-            return Input.GetMouseButtonUp(0);
+            return !isInVR && Input.GetMouseButtonUp(0);
         }
 
         public override bool SnappingThisFrame()
