@@ -619,6 +619,7 @@ namespace JanSharp
                 return;
             }
 
+            // This offset is to be applied relative to the world rotation of the tracked transform.
             Vector3 euler = Vector3.zero;
             euler[highlightedAxis] = totalMovement;
             Quaternion offset = Quaternion.Euler(euler);
